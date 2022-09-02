@@ -158,7 +158,7 @@ class LogoutController extends Controller {
         // for details, see 
         // https://accounts.login.idm.telekom.com/devguide/telekom_login/OpenIDConnectBackChannelLogout.html
         // tbs2014/tbs2014
-        $this->logger->debug("Backchannel logout received: " . $logoutToken);
+        $this->logger->debug("Backchannel logout received: " . $logout_token);
         return new DataResponse();  
 	}
 }
