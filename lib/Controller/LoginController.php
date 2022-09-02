@@ -323,6 +323,8 @@ class LoginController extends Controller {
                 $successRedirect = \OC_Util::getDefaultPageUrl();
             }
             $this->logger->debug("{$uid}: Standard redirect to: " . $successRedirect );
+			header('Location: ' . $successRedirect);
+			exit();
             return new RedirectResponse($userReaction->getRedirectUrl());
         } else {
             // negative default
