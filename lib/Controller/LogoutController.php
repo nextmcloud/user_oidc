@@ -35,60 +35,59 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
-use OCP\IConfig;
 use OCP\ILogger;
 use OCP\IRequest;
 use OCP\ISession;
 use OCP\IUserSession;
+use OCP\IConfig;
 
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\ProviderService;
 
 
 class LogoutController extends Controller {
-	private const REDIRECT_AFTER_LOGIN = 'oidc.redirect';
+        private const REDIRECT_AFTER_LOGIN = 'oidc.redirect';
 
-	public const USER_AGENT_CHROME = '/^Mozilla\/5\.0 \([^)]+\) AppleWebKit\/[0-9.]+ \(KHTML, like Gecko\)( Ubuntu Chromium\/[0-9.]+|) Chrome\/[0-9.]+ (Mobile Safari|Safari)\/[0-9.]+( (Vivaldi|Brave|OPR)\/[0-9.]+|)$/';
-	public const USER_AGENT_ANDROID_MOBILE_CHROME = '#Android.*Chrome/[.0-9]*#';
+        public const USER_AGENT_CHROME = '/^Mozilla\/5\.0 \([^)]+\) AppleWebKit\/[0-9.]+ \(KHTML, like Gecko\)( Ubuntu Chromium\/[0-9.]+|) Chrome\/[0-9.]+ (Mobile Safari|Safari)\/[0-9.]+( (Vivaldi|Brave|OPR)\/[0-9.]+|)$/';
+        public const USER_AGENT_ANDROID_MOBILE_CHROME = '#Android.*Chrome/[.0-9]*#';
+
+    /** @var IConfig */
+        private $config;
 
     /** @var ILogger */
-	private $logger;
+        private $logger;
 
     /** @var ISession */
-	private $session;
+        private $session;
 
     /** @var IUserSession */
-	private $userSession;
+        private $userSession;
 
     /** @var ProviderService */
-	private $providerService;
+        private $providerService;
 
-	/** @var DiscoveryService */
-	private $discoveryService;
-	/**
-	 * @var IConfig
-	 */
-	private $config;
+        /** @var DiscoveryService */
+        private $discoveryService;
 
 
-	public function __construct(
-		IRequest $request,
-		ILogger $logger,
+        public function __construct(
+                IRequest $request,
+                ILogger $logger,
         ISession $session,
         IUserSession $userSession,
         ProviderService $providerService,
-		DiscoveryService $discoveryService,
-		IConfig $config
-	) {
-		parent::__construct(Application::APP_ID, $request);
+        DiscoveryService $discoveryService,
+        ICOnfig          $config
+        ) {
+                parent::__construct(Application::APP_ID, $request);
 
-		$this->logger = $logger;
+                $this->logger = $logger;
         $this->session = $session;
         $this->userSession = $userSession;
         $this->providerService = $providerService;
         $this->discoveryService = $discoveryService;
-		$this->config = $config;
-	}
+        $this->config = $config;
+        }
 
     protected function defaultLoginPage() {
         $loginRedirect = $this->session->get(self::REDIRECT_AFTER_LOGIN);
@@ -123,38 +122,38 @@ class LogoutController extends Controller {
     }
 
 
-	/**
+        /**
      * @NoAdminRequired
-	 * @NoCSRFRequired
+         * @NoCSRFRequired
      * @UseSession
      */
-	public function sessionlogout() {
+        public function sessionlogout() {
         $this->logger->debug("Logout for user " . $this->userSession->getUser()->getUID());
         $loginToken = $this->request->getCookie('nc_token');
-		if (!is_null($loginToken)) {
-			$this->config->deleteUserValue($this->userSession->getUser()->getUID(), 'login_token', $loginToken);
-		}
-		$this->userSession->logout();
+                if (!is_null($loginToken)) {
+                        $this->config->deleteUserValue($this->userSession->getUser()->getUID(), 'login_token', $loginToken);
+                }
+                $this->userSession->logout();
 
-		$this->session->clear();
+                $this->session->clear();
 
         // TODO: for now, we only support logout with 'Telekom' provider
         $response = $this->ssoLogoutPage();
 
-		if (!$this->request->isUserAgent([self::USER_AGENT_CHROME, self::USER_AGENT_ANDROID_MOBILE_CHROME])) {
-			$response->addHeader('Clear-Site-Data', '"cache", "storage"');
-		}
+                if (!$this->request->isUserAgent([self::USER_AGENT_CHROME, self::USER_AGENT_ANDROID_MOBILE_CHROME])) {
+                        $response->addHeader('Clear-Site-Data', '"cache", "storage"');
+                }
         return $response;
     }
 
-	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
+        /**
+         * @PublicPage
+         * @NoCSRFRequired
      * @NoAdminRequired
      *
      * @param string $logout_token
-	 */
-	public function logout($logout_token = '') {
+         */
+        public function logout($logout_token = '') {
         // TODO: we have no real usecase for Backchannel logout yet.
 
         // If we need to implement it, we have to catch the session_token from OepID web login
@@ -166,5 +165,5 @@ class LogoutController extends Controller {
         // tbs2014/tbs2014
         $this->logger->debug("Backchannel logout received: " . $logout_token);
         return new DataResponse();
-	}
+        }
 }
