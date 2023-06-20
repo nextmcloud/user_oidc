@@ -26,7 +26,7 @@
 	    <!-- NextMagentaCloud support must check functionality and increase max-version
 			 with each major release change. See architecture documentation for details.
 		-->
-		<nextcloud min-version="20" max-version="24"/>
+		<nextcloud min-version="20" max-version="25"/>
 	</dependencies>
 	<settings>
 		<admin>OCA\UserOIDC\Settings\AdminSettings</admin>
