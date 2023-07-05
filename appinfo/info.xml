@@ -8,7 +8,7 @@
     Allows flexible configuration of an OIDC server as Nextcloud login user backend.
     This is a an adoption of standard user_oidc with Telekom specials and SAM3 bearer token support.
     </description>
-	<version>1.2.2-nmc</version>
+	<version>nmc1.2.6-rc1-2</version>
 	<licence>agpl</licence>
 	<author>Roeland Jago Douma</author>
 	<author>Julius Härtl</author>
