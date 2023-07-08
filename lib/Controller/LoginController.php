@@ -36,6 +36,8 @@ use OCA\UserOIDC\Event\TokenObtainedEvent;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\EventProvisioningService;
+use OCA\UserOIDC\Service\ProvisioningDeniedException;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
 use OCA\UserOIDC\AppInfo\Application;
@@ -118,6 +120,9 @@ class LoginController extends BaseOidcController {
 	/** @var SessionMapper */
 	private $sessionMapper;
 
+	/** @var EventProvisioningService */
+	private $eventProvisioningService;
+
 	/** @var ProvisioningService */
 	private $provisioningService;
 
@@ -145,6 +150,7 @@ class LoginController extends BaseOidcController {
 		IConfig $config,
 		IProvider $authTokenProvider,
 		SessionMapper $sessionMapper,
+		EventProvisioningService $eventProvisioningService,
 		ProvisioningService $provisioningService,
 		IL10N $l10n,
 		ILogger $logger,
@@ -168,6 +174,7 @@ class LoginController extends BaseOidcController {
 		$this->ldapService = $ldapService;
 		$this->authTokenProvider = $authTokenProvider;
 		$this->sessionMapper = $sessionMapper;
+		$this->eventProvisioningService = $eventProvisioningService;
 		$this->provisioningService = $provisioningService;
 		$this->request = $request;
 		$this->l10n = $l10n;
@@ -471,10 +478,29 @@ class LoginController extends BaseOidcController {
 		}
 
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
+		$eventProvisionAllowed = (!isset($oidcSystemConfig['event_provision']) || $oidcSystemConfig['event_provision']);
 		$autoProvisionAllowed = (!isset($oidcSystemConfig['auto_provision']) || $oidcSystemConfig['auto_provision']);
 
 		// Provisioning
-		if ($autoProvisionAllowed) {
+		if ($eventProvisionAllowed) {
+			// for the moment, make event provisioning another (prio) config option
+			// TODO: (proposal) refactor all provisioning strategies into event handlers
+			try {
+				$user = $this->eventProvisioningService->provisionUser($userId, $providerId, $idTokenPayload);
+			} catch( ProvisioningDeniedException $denied ) {
+				$redirectUrl = $denied->getRedirectUrl();
+				if ( $redirectUrl === null ) {
+					$message = $this->l10n->t('Failed to provision the user');
+					return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => $denied->getMessage()]);		
+				} else {
+					// error response is a redirect, e.g. to a booking site
+					// so that you can immediately get the registration page
+					return new RedirectResponse($redirectUrl);	
+				}
+			} catch (\Exception $e) {
+				$user = null;
+			}
+		} else if ($autoProvisionAllowed) {
 			$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload);
 		} else {
 			// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
