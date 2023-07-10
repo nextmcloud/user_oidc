@@ -24,8 +24,6 @@
 declare(strict_types=1);
 
 
-use OCP\ILogger;
-use OCP\ICacheFactory;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IResponse;
@@ -34,15 +32,14 @@ use OCP\AppFramework\App;
 use OCA\UserOIDC\AppInfo\Application;
 
 use OCA\UserOIDC\Db\Provider;
-use OCA\UserOIDC\Service\EventProvisioningService;
 
 use PHPUnit\Framework\TestCase;
 
-class DiscoveryServiceTest extends TestCase {
+class EventProvisioningServiceTest extends TestCase {
 	public function setUp(): void {
 		parent::setUp();
 		$this->app = new App(Application::APP_ID);
-	
+
 		$this->provider = $this->getMockBuilder(Provider::class)
 							->addMethods(['getDiscoveryEndpoint'])
 							->getMock();
@@ -55,33 +52,32 @@ class DiscoveryServiceTest extends TestCase {
 	}
 
 	public function testUidMapped() {
-    }
+	}
 
 	public function testUidNotMapped() {
-    }
+	}
 
-    public function testDisplaynameMapped() {
-    }
+	public function testDisplaynameMapped() {
+	}
 
 	public function testDisplaynameNotMapped() {
-    }
+	}
 
-    public function testQuotaMapped() {
-    }
+	public function testQuotaMapped() {
+	}
 
 	public function testQuotaNotMapped() {
-    }
+	}
 
 	public function testMappingProblem() {
-    }
+	}
 
 	public function testSuccess() {
-    }
+	}
 
-    public function testDenied() {
-    }
+	public function testDenied() {
+	}
 
-    public function testDeniedRedirect() {
-    }
-
+	public function testDeniedRedirect() {
+	}
 }
