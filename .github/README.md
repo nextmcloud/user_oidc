@@ -1,9 +1,11 @@
-# user_oidc: Customisation of OpenID app for MagentaCLOUD
+# MagentaCLOUD user_oidc
+
+Customisation of the Nextcloud delivered OpenID connect app for MagentaCLOUD.
 
 The app extends the standard `user_oidc` Nextcloud app,
-see [upstream configuration hints for basic setup](https://github.com/nextcloud/user_oidc/README.md)
+see [upstream configuration hints for basic setup](https://github.com/nextcloud/user_oidc/blob/main/README.md)
 
-The app is extended by the following features
+The app is extended by the following features:
 
 ## Event-based provisioning (upstream contribution candidate)
 The mechanism allows to implement custom puser provisioning logic in a separate Nextcloud app by
