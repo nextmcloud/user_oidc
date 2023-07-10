@@ -34,116 +34,125 @@ use OCP\EventDispatcher\IEventDispatcher;
 use OCP\ILogger;
 use OCP\IUserManager;
 
-class ProvisioningEventService {
+class ProvisioningEventService
+{
 
-	/** @var IEventDispatcher */
-	private $eventDispatcher;
+    /** @var IEventDispatcher */
+    private $eventDispatcher;
 
-	/** @var ILogger */
-	private $logger;
+    /** @var ILogger */
+    private $logger;
 
-	/** @var UserMapper */
-	private $userMapper;
+    /** @var UserMapper */
+    private $userMapper;
 
-	/** @var IUserManager */
-	private $userManager;
+    /** @var IUserManager */
+    private $userManager;
 
-	/** @var ProviderService */
-	private $providerService;
+    /** @var ProviderService */
+    private $providerService;
 
-	public function __construct(IEventDispatcher $eventDispatcher,
-								ILogger $logger,
-								UserMapper $userMapper,
-								IUserManager $userManager,
-								ProviderService $providerService) {
-		$this->eventDispatcher = $eventDispatcher;
-		$this->logger = $logger;
-		$this->userMapper = $userMapper;
-		$this->userManager = $userManager;
-		$this->providerService = $providerService;
-	}
+    public function __construct(
+        IEventDispatcher $eventDispatcher,
+        ILogger $logger,
+        UserMapper $userMapper,
+        IUserManager $userManager,
+        ProviderService $providerService
+    ) {
+        $this->eventDispatcher = $eventDispatcher;
+        $this->logger = $logger;
+        $this->userMapper = $userMapper;
+        $this->userManager = $userManager;
+        $this->providerService = $providerService;
+    }
 
-	protected function mapDispatchUID(int $providerid, object $payload, string $tokenUserId) {
-		$uidAttribute = $this->providerService->getSetting($providerid, ProviderService::SETTING_MAPPING_UID, 'sub');
-		$mappedUserId = $payload->{$uidAttribute} ?? $tokenUserId;
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_UID, $payload, $mappedUserId);
-		$this->eventDispatcher->dispatchTyped($event);
-		return $event->getValue();
-	}
+    protected function mapDispatchUID(int $providerid, object $payload, string $tokenUserId)
+    {
+        $uidAttribute = $this->providerService->getSetting($providerid, ProviderService::SETTING_MAPPING_UID, 'sub');
+        $mappedUserId = $payload->{$uidAttribute} ?? $tokenUserId;
+        $event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_UID, $payload, $mappedUserId);
+        $this->eventDispatcher->dispatchTyped($event);
+        return $event->getValue();
+    }
 
-	protected function mapDispatchDisplayname(int $providerid, object $payload) {
-		$displaynameAttribute = $this->providerService->getSetting($providerid, ProviderService::SETTING_MAPPING_DISPLAYNAME, 'displayname');
-		$mappedDisplayName = $payload->{$displaynameAttribute} ?? null;
+    protected function mapDispatchDisplayname(int $providerid, object $payload)
+    {
+        $displaynameAttribute = $this->providerService->getSetting($providerid, ProviderService::SETTING_MAPPING_DISPLAYNAME, 'displayname');
+        $mappedDisplayName = $payload->{$displaynameAttribute} ?? null;
 
-		if (isset($mappedDisplayName)) {
-			$limitedDisplayName = mb_substr($mappedDisplayName, 0, 255);
-			$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_DISPLAYNAME, $payload, $limitedDisplayName);
-		} else {
-			$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_DISPLAYNAME, $payload);
-		}
-		$this->eventDispatcher->dispatchTyped($event);
-		return $event->getValue();
-	}
+        if (isset($mappedDisplayName)) {
+            $limitedDisplayName = mb_substr($mappedDisplayName, 0, 255);
+            $event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_DISPLAYNAME, $payload, $limitedDisplayName);
+        } else {
+            $event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_DISPLAYNAME, $payload);
+        }
+        $this->eventDispatcher->dispatchTyped($event);
+        return $event->getValue();
+    }
 
-	protected function mapDispatchEmail(int $providerid, object $payload) {
-		$emailAttribute = $this->providerService->getSetting($providerid, ProviderService::SETTING_MAPPING_EMAIL, 'email');
-		$mappedEmail = $payload->{$emailAttribute} ?? null;
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_EMAIL, $payload, $mappedEmail);
-		$this->eventDispatcher->dispatchTyped($event);
-		return $event->getValue();
-	}
+    protected function mapDispatchEmail(int $providerid, object $payload)
+    {
+        $emailAttribute = $this->providerService->getSetting($providerid, ProviderService::SETTING_MAPPING_EMAIL, 'email');
+        $mappedEmail = $payload->{$emailAttribute} ?? null;
+        $event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_EMAIL, $payload, $mappedEmail);
+        $this->eventDispatcher->dispatchTyped($event);
+        return $event->getValue();
+    }
 
-	protected function mapDispatchQuota(int $providerid, object $payload) {
-		$quotaAttribute = $this->providerService->getSetting($providerid, ProviderService::SETTING_MAPPING_QUOTA, 'quota');
-		$mappedQuota = $payload->{$quotaAttribute} ?? null;
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_QUOTA, $payload, $mappedQuota);
-		$this->eventDispatcher->dispatchTyped($event);
-		return $event->getValue();
-	}
+    protected function mapDispatchQuota(int $providerid, object $payload)
+    {
+        $quotaAttribute = $this->providerService->getSetting($providerid, ProviderService::SETTING_MAPPING_QUOTA, 'quota');
+        $mappedQuota = $payload->{$quotaAttribute} ?? null;
+        $event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_QUOTA, $payload, $mappedQuota);
+        $this->eventDispatcher->dispatchTyped($event);
+        return $event->getValue();
+    }
 
-	protected function dispatchUserAccountUpdate(string $uid, ?string $displayName, ?string $email, ?string $quota, object $payload) {
-		$event = new UserAccountChangeEvent($uid, $displayName, $email, $quota, $payload);
-		$this->eventDispatcher->dispatchTyped($event);
+    protected function dispatchUserAccountUpdate(string $uid, ?string $displayName, ?string $email, ?string $quota, object $payload)
+    {
+        $event = new UserAccountChangeEvent($uid, $displayName, $email, $quota, $payload);
+        $this->eventDispatcher->dispatchTyped($event);
         return $event->getResult();
     }
 
-	/**
-	 * Trigger a provisioning via event system.
-     * This allows to flexibly implement complex provisioning strategies - 
-	 * even in a separate app.
-	 * 
-	 * On error, the provisioning logic can deliver failure reasons and
-	 * even a redirect to a different endpoint.
-	 * 
-	 * @param string $tokenUserId
-	 * @param int $providerId
-	 * @param object $idTokenPayload
-	 * @return IUser|null
-	 * @throws Exception
-	 * @throws ContainerExceptionInterface
-	 * @throws NotFoundExceptionInterface
-	 * @throws ProvisioningDeniedException 
-	 */
-	public function provisionUser(string $tokenUserId, int $providerId, object $idTokenPayload): ?IUser {
-		try {
-			$uid = $this->userService->mapDispatchUID($providerId, $idTokenPayload, $tokenUserId);
-			$displayname = $this->userService->mapDispatchDisplayname($providerId, $idTokenPayload);
-			$email = $this->userService->mapDispatchEmail($providerId, $idTokenPayload);
-			$quota = $this->userService->mapDispatchQuota($providerId, $idTokenPayload);
-		} catch (AttributeValueException $eAttribute) {
-			$this->logger->info("{$uid}: user rejected by OpenId web authorization, reason: " . $userReaction->getReason());
-			throw new ProvisioningDeniedException("Problems with user information.");
-		}
+    /**
+     * Trigger a provisioning via event system.
+     * This allows to flexibly implement complex provisioning strategies -
+     * even in a separate app.
+     *
+     * On error, the provisioning logic can deliver failure reasons and
+     * even a redirect to a different endpoint.
+     *
+     * @param string $tokenUserId
+     * @param int $providerId
+     * @param object $idTokenPayload
+     * @return IUser|null
+     * @throws Exception
+     * @throws ContainerExceptionInterface
+     * @throws NotFoundExceptionInterface
+     * @throws ProvisioningDeniedException
+     */
+    public function provisionUser(string $tokenUserId, int $providerId, object $idTokenPayload): ?IUser
+    {
+        try {
+            $uid = $this->userService->mapDispatchUID($providerId, $idTokenPayload, $tokenUserId);
+            $displayname = $this->userService->mapDispatchDisplayname($providerId, $idTokenPayload);
+            $email = $this->userService->mapDispatchEmail($providerId, $idTokenPayload);
+            $quota = $this->userService->mapDispatchQuota($providerId, $idTokenPayload);
+        } catch (AttributeValueException $eAttribute) {
+            $this->logger->info("{$uid}: user rejected by OpenId web authorization, reason: " . $userReaction->getReason());
+            throw new ProvisioningDeniedException("Problems with user information.");
+        }
 
-		$userReaction = $this->dispatchUserAccountUpdate($uid, $displayname, $email, $quota, $payload);
-		if ($userReaction->isAccessAllowed()) {
-			$this->logger->info("{$uid}: account accepted, reason: " . $userReaction->getReason());
-			$user = $this->userManager->get($uid);
-			return $user;
-		} else {
-			$this->logger->info("{$uid}: account rejected, reason: " . $userReaction->getReason());
-			throw new ProvisioningDeniedException($userReaction->getReason(), $userReaction->getRedirectUrl());
-		}	
-	}
-	
+        $userReaction = $this->dispatchUserAccountUpdate($uid, $displayname, $email, $quota, $payload);
+        if ($userReaction->isAccessAllowed()) {
+            $this->logger->info("{$uid}: account accepted, reason: " . $userReaction->getReason());
+            $user = $this->userManager->get($uid);
+            return $user;
+        } else {
+            $this->logger->info("{$uid}: account rejected, reason: " . $userReaction->getReason());
+            throw new ProvisioningDeniedException($userReaction->getReason(), $userReaction->getRedirectUrl());
+        }
+    }
+
 }

@@ -29,45 +29,48 @@ namespace OCP;
  * Exception if the precondition of the config update method isn't met
  * @since 1.4.0
  */
-class ProvisioningDeniedException extends \Exception {
+class ProvisioningDeniedException extends \Exception
+{
 
-	private $redirectUrl;
-
-	/**
-	 * Exception constructor including an option redirect url.
-	 *
-	 * @param string $message  The error message. It will be not revealed to the
-	 *                         the user (unless the hint is empty) and thus
-	 *                         should be not translated.
-	 * @param string $hint     A useful message that is presented to the end
-	 *                         user. It should be translated, but must not
-	 *                         contain sensitive data.
-	 * @param int $code        Set default to 403 (Forbidden)
-	 * @param \Exception|null $previous
-	 */
-	public function __construct(string $message, ?string $redirectUrl = null, int $code = 403, \Exception $previous = null) {
-		$this->redirectUrl = $redirectUrl;
-		parent::__construct($message, $code, $previous);
-	}
-
-	/**
-
-     *
-	 * @return string
-	 */
-	public function getRedirectUrl(): string {
-		return $this->redirectUrl;
-	}
+    private $redirectUrl;
 
     /**
-	 * Include redirect in string serialisation.
-	 *
-	 * @return string
-	 */
-	public function __toString(): string {
+     * Exception constructor including an option redirect url.
+     *
+     * @param string $message  The error message. It will be not revealed to the
+     *                         the user (unless the hint is empty) and thus
+     *                         should be not translated.
+     * @param string $hint     A useful message that is presented to the end
+     *                         user. It should be translated, but must not
+     *                         contain sensitive data.
+     * @param int $code        Set default to 403 (Forbidden)
+     * @param \Exception|null $previous
+     */
+    public function __construct(string $message, ?string $redirectUrl = null, int $code = 403, \Exception $previous = null)
+    {
+        parent::__construct($message, $code, $previous);
+        $this->redirectUrl = $redirectUrl;
+    }
+
+    /**
+     * Read optional failure redirect if available
+     * @return string|null
+     */
+    public function getRedirectUrl(): ?string
+    {
+        return $this->redirectUrl;
+    }
+
+    /**
+     * Include redirect in string serialisation.
+     *
+     * @return string
+     */
+    public function __toString(): string
+    {
         $redirect = $this->redirectUrl ?? '<no redirect>';
-		return __CLASS__ . ": [{$this->code}]: {$this->message} ({$redirect})\n";
-	}
+        return __CLASS__ . ": [{$this->code}]: {$this->message} ({$redirect})\n";
+    }
 
 
 }
