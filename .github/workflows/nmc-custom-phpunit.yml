@@ -1,0 +1,39 @@
+###
+# SPDX-License-Identifier: AGPL-3.0
+#
+# Author: Bernd rederlechner <bernd.rederlechner@t-systems.com>
+#
+# Assemble a customisation for trunk (no backports) and stable
+# (backport xor trunk)
+#
+# It creates review (user-specific) customisations branches
+# - customisation-<user>-<trunk>
+# - customisation-<user>-<stable>
+
+name: MCLOUD phpunit (customisation change)
+
+###
+# The automated unittets cycles are started as soon as a new
+# customisation branch is pushed
+on:
+  push:
+    branches:
+      - customisation-*master
+      - customisation-*nmcstable/**
+
+jobs:
+  build-custom:
+    strategy:
+      fail-fast: false
+      matrix:
+        phpversion: ['8.0', '8.1']
+        database: ['mysql']
+        custombase: [ "main", "nmcstable/25.0.6" ]
+    uses: nextmcloud/.github/.github/workflows/nmc-custom-app-phpunit.yml@master
+    with:
+      assembly: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
+      appname: 'user_oidc'
+      server-branch: ${{ matrix.custombase }}
+      phpversion: ${{ matrix.phpversion }}
+      database: ${{ matrix.database }}
+    secrets: inherit
