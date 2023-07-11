@@ -18,8 +18,8 @@ name: MCLOUD phpunit (customisation change)
 on:
   push:
     branches:
-      - customisation-*master
-      - customisation-*nmcstable/**
+      - customisation-*-main
+      - customisation-*-nmcstable/**
 
 jobs:
   build-custom:
