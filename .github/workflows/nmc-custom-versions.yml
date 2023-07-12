@@ -30,7 +30,8 @@ on:
       # - stable/**
 
 jobs:
-  build-custom:
+
+  assemble:
     strategy:
       fail-fast: false
       matrix:
@@ -40,4 +41,21 @@ jobs:
       trunk: "main"
       stable: ${{ matrix.custombase }}
       result: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
+    secrets: inherit
+
+  phpunit:
+    strategy:
+      fail-fast: false
+      matrix:
+        phpversion: ['8.0', '8.1']
+        database: ['mysql']
+        custombase: [ "main", "nmcstable/25.0.6" ]
+    uses: nextmcloud/.github/.github/workflows/nmc-custom-app-phpunit.yml@master
+    need: assemble
+    with:
+      assembly: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
+      appname: 'user_oidc'
+      server-branch: ${{ matrix.custombase }}
+      phpversion: ${{ matrix.phpversion }}
+       database: ${{ matrix.database }}
     secrets: inherit
