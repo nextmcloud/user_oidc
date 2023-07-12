@@ -57,5 +57,5 @@ jobs:
       appname: 'user_oidc'
       server-branch: ${{ matrix.custombase }}
       phpversion: ${{ matrix.phpversion }}
-       database: ${{ matrix.database }}
+      database: ${{ matrix.database }}
     secrets: inherit
