@@ -51,7 +51,7 @@ jobs:
         database: ['mysql']
         custombase: [ "main", "nmcstable/25.0.6" ]
     uses: nextmcloud/.github/.github/workflows/nmc-custom-app-phpunit.yml@master
-    need: assemble
+    needs: assemble
     with:
       assembly: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
       appname: 'user_oidc'
