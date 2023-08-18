@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace OCA\UserOIDC\BaseTest;
 
 use OCP\AppFramework\App;
-use OCP\ISession;
-use OCP\IConfig;
 
 use PHPUnit\Framework\TestCase;
 
