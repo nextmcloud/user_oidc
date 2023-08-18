@@ -10,7 +10,6 @@
 
 declare(strict_types=1);
 
-use OCP\App\IAppManager;
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\ProvisioningEventService;
@@ -19,17 +18,16 @@ use OC\AppFramework\Bootstrap\Coordinator;
 use PHPUnit\Framework\TestCase;
 
 class RegistrationsTest extends TestCase {
-
 	public function setUp() :void {
 		parent::setUp();
 
-        $this->app = new Application();
-        $coordinator = \OC::$server->get(Coordinator::class);
-        $this->app->register($coordinator->getRegistrationContext()->for('user_oidc'));
-    }
+		$this->app = new Application();
+		$coordinator = \OC::$server->get(Coordinator::class);
+		$this->app->register($coordinator->getRegistrationContext()->for('user_oidc'));
+	}
 
-    public function testRegistration() :void {
-        $provisioningService = $this->app->getContainer()->get(ProvisioningService::class);
-        $this->assertInstanceOf(ProvisioningEventService::class, $provisioningService);
-    }
+	public function testRegistration() :void {
+		$provisioningService = $this->app->getContainer()->get(ProvisioningService::class);
+		$this->assertInstanceOf(ProvisioningEventService::class, $provisioningService);
+	}
 }

@@ -65,7 +65,7 @@ class Application extends App implements IBootstrap {
 		 */
 		$context->registerServiceAlias(ProvisioningService::class, ProvisioningEventService::class);
 
-        /** @var IUserManager $userManager */
+		/** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
 		/* Register our own user backend */
@@ -74,12 +74,10 @@ class Application extends App implements IBootstrap {
 		OC_User::useBackend($this->backend);
 
 		$context->registerEventListener(LoadAdditionalScriptsEvent::class, TimezoneHandlingListener::class);
-	
 	}
 
 	public function boot(IBootContext $context): void {
-
-        $context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
+		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
 		/** @var IUserSession $userSession */
 		$userSession = $this->getContainer()->get(IUserSession::class);
 		if ($userSession->isLoggedIn()) {

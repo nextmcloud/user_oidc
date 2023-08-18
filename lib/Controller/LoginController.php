@@ -481,8 +481,8 @@ class LoginController extends BaseOidcController {
 		// Provisioning
 		if ($autoProvisionAllowed) {
 			// TODO: (proposal) refactor all provisioning strategies into event handlers
-            $user = null;
-            try {
+			$user = null;
+			try {
 				$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload);
 			} catch (ProvisioningDeniedException $denied) {
 				// TODO MagentaCLOUD should upstream the exception handling
@@ -495,8 +495,8 @@ class LoginController extends BaseOidcController {
 					// so that you can immediately get the registration page
 					return new RedirectResponse($redirectUrl);
 				}
-			} 
-            // no default exception handling to pass on unittest assertion failures
+			}
+			// no default exception handling to pass on unittest assertion failures
 		} else {
 			// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
 			// so new users will be directly available even if they were not synced before this login attempt
