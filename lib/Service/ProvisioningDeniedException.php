@@ -23,7 +23,7 @@ declare(strict_types=1);
  *
  */
 
-namespace OCP;
+namespace OCA\UserOIDC\Service;
 
 /**
  * Exception if the precondition of the config update method isn't met
