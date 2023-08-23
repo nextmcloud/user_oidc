@@ -33,6 +33,8 @@ use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\SettingsService;
+use OCA\UserOIDC\Service\ProvisioningService;
+use OCA\UserOIDC\Service\ProvisioningEventService;
 use OCA\UserOIDC\User\Backend;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -57,6 +59,12 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		/**
+		 * MagentaCLOUD replaces the normal provisioning behavior with the event based one
+		 * as a decoupled way to force event based approach
+		 */
+		$context->registerServiceAlias(ProvisioningService::class, ProvisioningEventService::class);
+
 		/** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
