@@ -74,7 +74,7 @@ class UpsertProvider extends Command {
 			->addOption('mapping-uid', null, InputOption::VALUE_OPTIONAL, 'Attribute mapping of the user id')
 			->addOption('extra-claims', null, InputOption::VALUE_OPTIONAL, 'Extra claims to request when getting tokens')
 			->addOption('bearersecret', 'bs', InputOption::VALUE_OPTIONAL, 'Telekom bearer token requires a different client secret for bearer tokens')
-            ->addOption(
+			->addOption(
 				'output',
 				null,
 				InputOption::VALUE_OPTIONAL,
@@ -101,7 +101,7 @@ class UpsertProvider extends Command {
 		}
 
 		// bearersecret is usually base64 encoded, but SAM delivers it non-encoded
-        // by default; so always encode/decode for this field
+		// by default; so always encode/decode for this field
 		$bearersecret = $input->getOption('bearersecret');
 		if ($bearersecret !== null) {
 			$bearersecret = $this->crypto->encrypt(\Base64Url\Base64Url::encode($bearersecret));
@@ -110,7 +110,7 @@ class UpsertProvider extends Command {
 		// check if any option for updating is provided
 		$updateOptions = array_filter($input->getOptions(), static function ($value, $option) {
 			return in_array($option, [
-				'identifier', 'clientid', 'clientsecret', 'discoveryuri', 
+				'identifier', 'clientid', 'clientsecret', 'discoveryuri',
 				'scope', 'unique-uid', 'check-bearer', 'bearersecret',
 				'mapping-uid', 'mapping-display-name', 'mapping-email', 'mapping-quota',
 				'extra-claims'
