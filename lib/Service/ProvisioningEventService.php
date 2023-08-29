@@ -137,7 +137,9 @@ class ProvisioningEventService extends ProvisioningService {
 	 */
 	public function provisionUser(string $tokenUserId, int $providerId, object $idTokenPayload): ?IUser {
 		try {
-			$uid = $this->mapDispatchUID($providerId, $idTokenPayload, $tokenUserId);
+            // for multiple reasons, it is better to take the uid directly from a token field
+			//$uid = $this->mapDispatchUID($providerId, $idTokenPayload, $tokenUserId);
+			$uid = $tokenUserId;
 			$displayname = $this->mapDispatchDisplayname($providerId, $idTokenPayload);
 			$email = $this->mapDispatchEmail($providerId, $idTokenPayload);
 			$quota = $this->mapDispatchQuota($providerId, $idTokenPayload);

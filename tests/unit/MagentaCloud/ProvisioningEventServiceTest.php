@@ -348,20 +348,21 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 	}
 
 	/**
-	 * Test uid event mapping and successful login.
+	 * For multiple reasons, uid should com directly from a token
+     * field, usually sub. Thus, uid is not remapped by event, even
+     * if you try with a listener.
 	 */
-	public function testUidMapEvent_AccessOk() {
+	public function testUidNoMapEvent_AccessOk() {
 		$this->mockAssertLoginSuccess();
 		$this->attributeListener = function (Event $event): void {
 			if ($event instanceof AttributeMappedEvent &&
 				$event->getAttribute() == ProviderService::SETTING_MAPPING_UID) {
-				//$defaultUID = $event->getValue();
-				$event->setValue("991500000001234");
+                $this->fail('UID event mapping not supported');
 			}
 		};
 		$this->accountListener = function (Event $event) :void {
 			$this->assertInstanceOf(UserAccountChangeEvent::class, $event);
-			$this->assertEquals('991500000001234', $event->getUid());
+			$this->assertEquals('jgyros', $event->getUid());
 			$this->assertEquals('Jonny G', $event->getDisplayname());
 			$this->assertEquals('jonny.gyuris@x.y.de', $event->getMainEmail());
 			$this->assertNull($event->getQuota());
@@ -432,7 +433,7 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 		$this->attributeListener = function (Event $event): void {
 			if ($event instanceof AttributeMappedEvent) {
 				if ($event->getAttribute() == ProviderService::SETTING_MAPPING_UID) {
-					$event->setValue("99887766553");
+					$this->fail('UID event mapping not supported');
 				} elseif ($event->getAttribute() == ProviderService::SETTING_MAPPING_DISPLAYNAME) {
 					$event->setValue("Lisa, Mona");
 				} elseif ($event->getAttribute() == ProviderService::SETTING_MAPPING_QUOTA) {
@@ -442,7 +443,7 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 		};
 		$this->accountListener = function (Event $event) :void {
 			$this->assertInstanceOf(UserAccountChangeEvent::class, $event);
-			$this->assertEquals('99887766553', $event->getUid());
+			$this->assertEquals('jgyros', $event->getUid());
 			$this->assertEquals('Lisa, Mona', $event->getDisplayname());
 			$this->assertEquals('jonny.gyuris@x.y.de', $event->getMainEmail());
 			$this->assertEquals('5 TB', $event->getQuota());
