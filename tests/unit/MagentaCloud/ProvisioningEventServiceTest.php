@@ -349,15 +349,15 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 
 	/**
 	 * For multiple reasons, uid should com directly from a token
-     * field, usually sub. Thus, uid is not remapped by event, even
-     * if you try with a listener.
+	 * field, usually sub. Thus, uid is not remapped by event, even
+	 * if you try with a listener.
 	 */
 	public function testUidNoMapEvent_AccessOk() {
 		$this->mockAssertLoginSuccess();
 		$this->attributeListener = function (Event $event): void {
 			if ($event instanceof AttributeMappedEvent &&
 				$event->getAttribute() == ProviderService::SETTING_MAPPING_UID) {
-                $this->fail('UID event mapping not supported');
+				$this->fail('UID event mapping not supported');
 			}
 		};
 		$this->accountListener = function (Event $event) :void {
