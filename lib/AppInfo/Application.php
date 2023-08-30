@@ -33,7 +33,7 @@ use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\SettingsService;
-use OCA\UserOIDC\User\Backend;
+use OCA\UserOIDC\MagentaBearer\MBackend;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -61,7 +61,7 @@ class Application extends App implements IBootstrap {
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
 		/* Register our own user backend */
-		$this->backend = $this->getContainer()->get(Backend::class);
+		$this->backend = $this->getContainer()->get(MBackend::class);
 		$userManager->registerBackend($this->backend);
 		OC_User::useBackend($this->backend);
 
