@@ -142,16 +142,16 @@ class TokenService {
 	 * Transform them in a format compatible with id_token representation.
 	 */
 	public function decode(JWS $decodedToken) : object {
-		$this->logger->debug("Telekom SAM3 access token: " . $decodedToken->getPayload());		
+		$this->logger->debug("Telekom SAM3 access token: " . $decodedToken->getPayload());
 		$samContent = json_decode($decodedToken->getPayload(), false);
 
 		// remap all the custom claims
 		// adapt into OpenId id_token format (as far as possible)
-        $claimArray = $samContent->{'urn:telekom.com:idm:at:attributes'};
+		$claimArray = $samContent->{'urn:telekom.com:idm:at:attributes'};
 		foreach ($claimArray as $claimKeyValue) {
 			$samContent->{'urn:telekom.com:' . $claimKeyValue->name} = $claimKeyValue->value;
 		}
-        unset($samContent->{'urn:telekom.com:idm:at:attributes'});
+		unset($samContent->{'urn:telekom.com:idm:at:attributes'});
 
 		$this->logger->debug("Adapted OpenID-like token; " . json_encode($samContent));
 		return $samContent;

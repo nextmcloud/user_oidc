@@ -25,14 +25,8 @@ declare(strict_types=1);
 
 namespace OCA\UserOIDC\User;
 
-use OCA\UserOIDC\Db\Provider;
-use OCA\UserOIDC\Event\TokenValidatedEvent;
-use OCA\UserOIDC\Controller\LoginController;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\ProviderService;
-use OCA\UserOIDC\User\Validator\SelfEncodedValidator;
-use OCA\UserOIDC\User\Validator\UserInfoValidator;
-use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Db\UserMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -53,13 +47,12 @@ use OCP\User\Backend\IGetDisplayNameBackend;
 use OCP\User\Backend\IPasswordConfirmationBackend;
 use Psr\Log\LoggerInterface;
 
-
 /**
  * Introduce a baseclass to derive multiple backend from depending on
  * the required bearer behavior.
- * 
+ *
  * The class contains the OIDC part without the bearer aspects.
- * 
+ *
  * FIXME: we should derive also the previous standard bearer backend from
  * this class
  */
@@ -224,5 +217,4 @@ abstract class AbstractOIDCBackend extends ABackend implements IPasswordConfirma
 		$user->updateLastLoginTimestamp();
 		return $firstLogin;
 	}
-
 }

@@ -51,7 +51,7 @@ class BearerTokenTestCase extends TestCase {
 	}
 
 	/**
-     * Test bearer secret
+	 * Test bearer secret
 	 */
 	public function getTestBearerSecret() {
 		return \Base64Url\Base64Url::encode('JQ17C99A-DAF8-4E27-FBW4-GV23B043C993');

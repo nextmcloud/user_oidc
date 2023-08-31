@@ -25,17 +25,9 @@ declare(strict_types=1);
 
 use OCA\UserOIDC\BaseTest\BearerTokenTestCase;
 
-use OCP\IConfig;
 
-use OCA\UserOIDC\Db\Provider;
 use OCA\UserOIDC\MagentaBearer\SignatureException;
 use OCA\UserOIDC\MagentaBearer\InvalidTokenException;
-
-use OCA\UserOIDC\MagentaBearer\TokenService;
-
-use PHPUnit\Framework\Assert;
-use PHPUnit\Framework\TestCase;
-
 
 class SamBearerTokenTest extends BearerTokenTestCase {
 
@@ -50,14 +42,14 @@ class SamBearerTokenTest extends BearerTokenTestCase {
 	}
 
 	public function testValidSignature() {
-        $this->expectNotToPerformAssertions();
+		$this->expectNotToPerformAssertions();
 		$testtoken = $this->setupSignedToken($this->getRealExampleClaims(), $this->getTestBearerSecret());
 		//fwrite(STDERR, '[' . $testtoken . ']');
 		$bearerToken = $this->tokenService->decryptToken($testtoken, $this->getTestBearerSecret());
 		$this->tokenService->verifySignature($bearerToken, $this->getTestBearerSecret());
 		$claims = $this->tokenService->decode($bearerToken);
 		$this->tokenService->verifyClaims($claims, ['http://auth.magentacloud.de']);
-    }
+	}
 
 	public function testInvalidSignature() {
 		$this->expectException(SignatureException::class);
@@ -71,14 +63,14 @@ class SamBearerTokenTest extends BearerTokenTestCase {
 	}
 
 	public function testEncryptedValidSignature() {
-        $this->expectNotToPerformAssertions();
+		$this->expectNotToPerformAssertions();
 		$testtoken = $this->setupSignEncryptToken($this->getRealExampleClaims(), $this->getTestBearerSecret());
 		//fwrite(STDERR, '[' . $testtoken . ']');
 		$bearerToken = $this->tokenService->decryptToken($testtoken, $this->getTestBearerSecret());
 		$this->tokenService->verifySignature($bearerToken, $this->getTestBearerSecret());
 		$claims = $this->tokenService->decode($bearerToken);
 		$this->tokenService->verifyClaims($claims, ['http://auth.magentacloud.de']);
-    }
+	}
 
 	public function testEncryptedInvalidEncryption() {
 		$this->expectException(InvalidTokenException::class);
@@ -89,7 +81,5 @@ class SamBearerTokenTest extends BearerTokenTestCase {
 		$this->tokenService->verifySignature($bearerToken, $this->getTestBearerSecret());
 		$claims = $this->tokenService->decode($bearerToken);
 		$this->tokenService->verifyClaims($claims, ['http://auth.magentacloud.de']);
-    }
-
-
+	}
 }
