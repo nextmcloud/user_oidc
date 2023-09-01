@@ -34,8 +34,11 @@ use OCP\AppFramework\Db\Entity;
  * @method void setClientId(string $clientId)
  * @method string getClientSecret()
  * @method void setClientSecret(string $clientSecret)
+ * @method string getBearerSecret()
+ * @method void setBearerSecret(string $bearerSecret)
  * @method string getDiscoveryEndpoint()
  * @method void setDiscoveryEndpoint(string $discoveryEndpoint)
+ * @method string getScope()
  * @method void setScope(string $scope)
  */
 class Provider extends Entity implements \JsonSerializable {
