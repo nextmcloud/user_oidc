@@ -298,9 +298,10 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 		$this->usermanager->expects($this->once())
 				->method('get')
 				->willReturn($this->user);
-		$this->session->expects($this->once())
+		$this->session->expects($this->exactly(2))
 					->method("set")
-					->with($this->equalTo('oidc.id_token'), $this->anything());
+                    ->withConsecutive([$this->equalTo('oidc.id_token'), $this->anything()],
+                                      [$this->equalTo('last-password-confirm'), $this->anything()] );
 		$this->usersession->expects($this->once())
 					->method("setUser")
 					->with($this->equalTo($this->user));
