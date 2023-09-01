@@ -83,9 +83,9 @@ class HeaderBearerTokenTest extends BearerTokenTestCase {
 				[Application::APP_ID, 'provider-2-' . ProviderService::SETTING_UNIQUE_UID, '0', '0'],
 			]);
 
-        $crypto = $app->getContainer()->get(ICrypto::class);
+		$crypto = $app->getContainer()->get(ICrypto::class);
 		$this->b64BearerToken = $this->getTestBearerSecret();
-        $encryptedB64BearerToken = $crypto->encrypt($this->getTestBearerSecret()); 
+		$encryptedB64BearerToken = $crypto->encrypt($this->getTestBearerSecret());
 
 		$this->providerMapper = $this->createMock(ProviderMapper::class);
 		$provider1 = $this->getMockBuilder(Provider::class)
@@ -159,7 +159,7 @@ class HeaderBearerTokenTest extends BearerTokenTestCase {
 								$this->providerMapper,
 								$this->providerService,
 								$userManager,
-                                $crypto,
+								$crypto,
 								$app->getContainer()->get(TokenService::class),
 								$provisioningService);
 	}
