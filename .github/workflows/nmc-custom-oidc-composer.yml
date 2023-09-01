@@ -45,7 +45,6 @@ jobs:
           # set user in case commits are needed
           git config user.name $BUILD_USER
           git config user.email $BUILD_EMAIL
-          git remote set-url origin http://no.such.host
 
       # install php dependencies
       - name: Set up php ${{ env.PHP_VERSION }}
