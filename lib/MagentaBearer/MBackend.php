@@ -25,7 +25,7 @@ declare(strict_types=1);
 
 namespace OCA\UserOIDC\MagentaBearer;
 
-use OCA\UserOIDC\User\AbstractOIDCBackend;
+use OCA\UserOIDC\User\AbstractOidcBackend;
 use OCA\UserOIDC\Db\Provider;
 use OCA\UserOIDC\Event\TokenValidatedEvent;
 use OCA\UserOIDC\Service\DiscoveryService;
