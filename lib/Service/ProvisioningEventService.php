@@ -25,23 +25,26 @@ declare(strict_types=1);
 
 namespace OCA\UserOIDC\Service;
 
+use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\AttributeMappedEvent;
 use OCA\UserOIDC\Event\UserAccountChangeEvent;
-use OCA\UserOIDC\Db\UserMapper;
+use OCP\DB\Exception;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\IGroupManager;
 use OCP\ILogger;
+use OCP\IUser;
 use OCP\IUserManager;
+use Psr\Container\ContainerExceptionInterface;
+use Psr\Container\NotFoundExceptionInterface;
 
-class ProvisioningEventService {
+// FIXME there should be an interface for both variations
+class ProvisioningEventService extends ProvisioningService {
 
 	/** @var IEventDispatcher */
 	private $eventDispatcher;
 
 	/** @var ILogger */
 	private $logger;
-
-	/** @var UserMapper */
-	private $userMapper;
 
 	/** @var IUserManager */
 	private $userManager;
@@ -50,15 +53,23 @@ class ProvisioningEventService {
 	private $providerService;
 
 	public function __construct(
+		LocalIdService   $idService,
+		ProviderService  $providerService,
+		UserMapper       $userMapper,
+		IUserManager     $userManager,
+		IGroupManager    $groupManager,
 		IEventDispatcher $eventDispatcher,
-		ILogger $logger,
-		UserMapper $userMapper,
-		IUserManager $userManager,
-		ProviderService $providerService
+		ILogger          $logger
 	) {
+		parent::__construct($idService,
+							$providerService,
+							$userMapper,
+							$userManager,
+							$groupManager,
+							$eventDispatcher,
+							$logger);
 		$this->eventDispatcher = $eventDispatcher;
 		$this->logger = $logger;
-		$this->userMapper = $userMapper;
 		$this->userManager = $userManager;
 		$this->providerService = $providerService;
 	}
@@ -126,16 +137,18 @@ class ProvisioningEventService {
 	 */
 	public function provisionUser(string $tokenUserId, int $providerId, object $idTokenPayload): ?IUser {
 		try {
-			$uid = $this->userService->mapDispatchUID($providerId, $idTokenPayload, $tokenUserId);
-			$displayname = $this->userService->mapDispatchDisplayname($providerId, $idTokenPayload);
-			$email = $this->userService->mapDispatchEmail($providerId, $idTokenPayload);
-			$quota = $this->userService->mapDispatchQuota($providerId, $idTokenPayload);
+			// for multiple reasons, it is better to take the uid directly from a token field
+			//$uid = $this->mapDispatchUID($providerId, $idTokenPayload, $tokenUserId);
+			$uid = $tokenUserId;
+			$displayname = $this->mapDispatchDisplayname($providerId, $idTokenPayload);
+			$email = $this->mapDispatchEmail($providerId, $idTokenPayload);
+			$quota = $this->mapDispatchQuota($providerId, $idTokenPayload);
 		} catch (AttributeValueException $eAttribute) {
-			$this->logger->info("{$uid}: user rejected by OpenId web authorization, reason: " . $userReaction->getReason());
-			throw new ProvisioningDeniedException("Problems with user information.");
+			$this->logger->info("{$uid}: user rejected by OpenId web authorization, reason: " . $eAttribute->getMessage());
+			throw new ProvisioningDeniedException($eAttribute->getMessage());
 		}
 
-		$userReaction = $this->dispatchUserAccountUpdate($uid, $displayname, $email, $quota, $payload);
+		$userReaction = $this->dispatchUserAccountUpdate($uid, $displayname, $email, $quota, $idTokenPayload);
 		if ($userReaction->isAccessAllowed()) {
 			$this->logger->info("{$uid}: account accepted, reason: " . $userReaction->getReason());
 			$user = $this->userManager->get($uid);

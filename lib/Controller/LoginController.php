@@ -150,7 +150,6 @@ class LoginController extends BaseOidcController {
 		IConfig $config,
 		IProvider $authTokenProvider,
 		SessionMapper $sessionMapper,
-		EventProvisioningService $eventProvisioningService,
 		ProvisioningService $provisioningService,
 		IL10N $l10n,
 		ILogger $logger,
@@ -174,7 +173,6 @@ class LoginController extends BaseOidcController {
 		$this->ldapService = $ldapService;
 		$this->authTokenProvider = $authTokenProvider;
 		$this->sessionMapper = $sessionMapper;
-		$this->eventProvisioningService = $eventProvisioningService;
 		$this->provisioningService = $provisioningService;
 		$this->request = $request;
 		$this->l10n = $l10n;
@@ -478,30 +476,27 @@ class LoginController extends BaseOidcController {
 		}
 
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
-		$eventProvisionAllowed = (!isset($oidcSystemConfig['event_provision']) || $oidcSystemConfig['event_provision']);
 		$autoProvisionAllowed = (!isset($oidcSystemConfig['auto_provision']) || $oidcSystemConfig['auto_provision']);
 
 		// Provisioning
-		if ($eventProvisionAllowed) {
-			// for the moment, make event provisioning another (prio) config option
+		if ($autoProvisionAllowed) {
 			// TODO: (proposal) refactor all provisioning strategies into event handlers
+			$user = null;
 			try {
-				$user = $this->eventProvisioningService->provisionUser($userId, $providerId, $idTokenPayload);
+				$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload);
 			} catch (ProvisioningDeniedException $denied) {
+				// TODO MagentaCLOUD should upstream the exception handling
 				$redirectUrl = $denied->getRedirectUrl();
 				if ($redirectUrl === null) {
-					$message = $this->l10n->t('Failed to provision the user');
+					$message = $this->l10n->t('Failed to provision user');
 					return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => $denied->getMessage()]);
 				} else {
 					// error response is a redirect, e.g. to a booking site
 					// so that you can immediately get the registration page
 					return new RedirectResponse($redirectUrl);
 				}
-			} catch (\Exception $e) {
-				$user = null;
 			}
-		} elseif ($autoProvisionAllowed) {
-			$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload);
+			// no default exception handling to pass on unittest assertion failures
 		} else {
 			// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
 			// so new users will be directly available even if they were not synced before this login attempt
