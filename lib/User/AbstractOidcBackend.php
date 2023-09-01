@@ -56,7 +56,7 @@ use Psr\Log\LoggerInterface;
  * FIXME: we should derive also the previous standard bearer backend from
  * this class
  */
-abstract class AbstractOIDCBackend extends ABackend implements IPasswordConfirmationBackend, IGetDisplayNameBackend, IApacheBackend, ICustomLogout {
+abstract class AbstractOidcBackend extends ABackend implements IPasswordConfirmationBackend, IGetDisplayNameBackend, IApacheBackend, ICustomLogout {
 
 	/** @var UserMapper */
 	protected $userMapper;

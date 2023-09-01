@@ -43,7 +43,7 @@ use OCP\IUserManager;
 use OCP\Security\ICrypto;
 use Psr\Log\LoggerInterface;
 
-class MBackend extends AbstractOIDCBackend {
+class MBackend extends AbstractOidcBackend {
 
 	/**
 	 * @var TokenService
