@@ -46,6 +46,7 @@ use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
 use Throwable;
+use Psr\Container\ContainerInterface;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'user_oidc';
@@ -60,8 +61,10 @@ class Application extends App implements IBootstrap {
 
 	public function register(IRegistrationContext $context): void {
         // override registration of provisioning srevice to use event-based solution
-		$context->registerServiceAlias(ProvisioningService::class, ProvisioningEventService::class);
-        
+        $this->getContainer()->registerService(ProvisioningService::class, function (ContainerInterface $c): ProvisioningService {
+            return $c->get(ProvisioningEventService::class);
+        });
+
         /** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
