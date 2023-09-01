@@ -43,15 +43,26 @@ jobs:
       result: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
     secrets: inherit
 
+  composerdep:
+    strategy:
+      fail-fast: false
+      matrix:
+        custombase: [ "main" ]
+    uses: ./.github/workflows/nmc-custom-oidc-composer.yml
+    needs: assemble
+    with:
+      assembly: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
+    secrets: inherit
+
   phpunit:
     strategy:
       fail-fast: false
       matrix:
         phpversion: ['8.0', '8.1']
         database: ['mysql']
-        custombase: [ "main", "nmcstable/25.0.6" ]
+        custombase: [ "main" ]
     uses: nextmcloud/.github/.github/workflows/nmc-custom-app-phpunit.yml@master
-    needs: assemble
+    needs: composerdep
     with:
       assembly: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
       appname: 'user_oidc'

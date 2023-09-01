@@ -47,9 +47,21 @@ jobs:
       stable: ${{ inputs.branch }}
       result: ${{ format('customisation-{0}-{1}', inputs.branch, inputs.increment ) }}
     secrets: inherit
+
+  composerdep:
+    strategy:
+      fail-fast: false
+      matrix:
+        custombase: [ "main" ]
+    uses: ./.github/workflows/nmc-custom-oidc-composer.yml
+    needs: assemble-custom
+    with:
+      assembly: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
+    secrets: inherit
+    
   build-custom:
     uses: nextmcloud/.github/.github/workflows/nmc-custom-app-build.yml@master
-    needs: [ check-custom, assemble-custom ]
+    needs: [ check-custom, composerdep ]
     with:
       appname: ${{ needs.check-custom.outputs.appname }}
       assembly: ${{ format('customisation-{0}-{1}', inputs.branch , inputs.increment ) }}
