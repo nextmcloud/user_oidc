@@ -35,6 +35,7 @@ use OCP\IUser;
 use OCP\IUserManager;
 
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\Security\ICrypto;
 
 use OCA\UserOIDC\AppInfo\Application;
 
@@ -156,6 +157,7 @@ class HeaderBearerTokenTest extends BearerTokenTestCase {
 								$this->providerMapper,
 								$this->providerService,
 								$userManager,
+								$app->getContainer()->get(ICrypto::class),
 								$app->getContainer()->get(TokenService::class),
 								$provisioningService);
 	}

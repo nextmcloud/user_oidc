@@ -40,6 +40,7 @@ use OCP\IRequest;
 use OCP\ISession;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
+use OCP\Security\ICrypto;
 use Psr\Log\LoggerInterface;
 
 class MBackend extends AbstractOIDCBackend {
@@ -65,6 +66,7 @@ class MBackend extends AbstractOIDCBackend {
 								ProviderMapper $providerMapper,
 								ProviderService $providerService,
 								IUserManager $userManager,
+								ICrypto $crypto,
 								TokenService $mtokenService,
 								ProvisioningEventService $provisioningService
 								) {
@@ -74,6 +76,7 @@ class MBackend extends AbstractOIDCBackend {
 	
 		$this->mtokenService = $mtokenService;
 		$this->provisioningService = $provisioningService;
+		$this->crypto = $crypto;
 	}
 
 	public function getBackendName(): string {
@@ -119,7 +122,7 @@ class MBackend extends AbstractOIDCBackend {
 		foreach ($providers as $provider) {
 			if ($this->providerService->getSetting($provider->getId(), ProviderService::SETTING_CHECK_BEARER, '0') === '1') {
 				try {
-					$sharedSecret = $provider->getBearerSecret();
+					$sharedSecret = $this->crypto->decrypt($provider->getBearerSecret());
 					$bearerToken = $this->mtokenService->decryptToken($headerToken, $sharedSecret);
 					$this->mtokenService->verifySignature($bearerToken, $sharedSecret);
 					$payload = $this->mtokenService->decode($bearerToken);
