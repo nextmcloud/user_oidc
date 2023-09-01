@@ -60,12 +60,12 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
-        // override registration of provisioning srevice to use event-based solution
-        $this->getContainer()->registerService(ProvisioningService::class, function (ContainerInterface $c): ProvisioningService {
-            return $c->get(ProvisioningEventService::class);
-        });
+		// override registration of provisioning srevice to use event-based solution
+		$this->getContainer()->registerService(ProvisioningService::class, function (ContainerInterface $c): ProvisioningService {
+			return $c->get(ProvisioningEventService::class);
+		});
 
-        /** @var IUserManager $userManager */
+		/** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
 		/* Register our own user backend */
