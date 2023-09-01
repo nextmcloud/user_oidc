@@ -77,7 +77,7 @@ class OpenidTokenTestCase extends TestCase {
 
 
 	public function getOidPublicServerKey() {
-		return \Firebase\JWT\JWK::parseKeySet([ "keys" => [[
+		return \OCA\UserOIDC\Vendor\Firebase\JWT\JWK::parseKeySet([ "keys" => [[
 			"kty" => "RSA",
 			"e" => "AQAB",
 			"use" => "sig",

@@ -39,7 +39,7 @@ use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\Service\EventProvisioningService;
 use OCA\UserOIDC\Service\ProvisioningDeniedException;
 use OCA\UserOIDC\Service\ProvisioningService;
-use Firebase\JWT\JWT;
+use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
