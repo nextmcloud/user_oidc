@@ -83,7 +83,9 @@ class HeaderBearerTokenTest extends BearerTokenTestCase {
 				[Application::APP_ID, 'provider-2-' . ProviderService::SETTING_UNIQUE_UID, '0', '0'],
 			]);
 
+        $crypto = $app->getContainer()->get(ICrypto::class);
 		$this->b64BearerToken = $this->getTestBearerSecret();
+        $encryptedB64BearerToken = $crypto->encrypt($this->getTestBearerSecret()); 
 
 		$this->providerMapper = $this->createMock(ProviderMapper::class);
 		$provider1 = $this->getMockBuilder(Provider::class)
@@ -102,7 +104,7 @@ class HeaderBearerTokenTest extends BearerTokenTestCase {
 		$provider2->expects(self::any())->method('getIdentifier')->willReturn('Telekom');
 		$provider2->expects(self::any())->method('getClientId')->willReturn('10TVL0SAM30000004901NEXTMAGENTACLOUDTEST');
 		$provider2->expects(self::any())->method('getClientSecret')->willReturn("client****");
-		$provider2->expects(self::any())->method('getBearerSecret')->willReturn($this->getTestBearerSecret());
+		$provider2->expects(self::any())->method('getBearerSecret')->willReturn($encryptedB64BearerToken);
 		$provider2->expects(self::any())->method('getDiscoveryEndpoint')->willReturn('https://accounts.login00.idm.ver.sul.t-online.de/.well-known/openid-configuration');
 
 		$this->providerMapper->expects(self::any())
@@ -157,7 +159,7 @@ class HeaderBearerTokenTest extends BearerTokenTestCase {
 								$this->providerMapper,
 								$this->providerService,
 								$userManager,
-								$app->getContainer()->get(ICrypto::class),
+                                $crypto,
 								$app->getContainer()->get(TokenService::class),
 								$provisioningService);
 	}
