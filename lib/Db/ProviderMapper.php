@@ -93,6 +93,7 @@ class ProviderMapper extends QBMapper {
 	 * @param string|null $clientsecret
 	 * @param string|null $discoveryuri
 	 * @param string scope
+	 * @param string|null $bearersecret
 	 * @throws \OCP\AppFramework\Db\DoesNotExistException
 	 * @throws \OCP\AppFramework\Db\MultipleObjectsReturnedException
 	 */
@@ -127,7 +128,7 @@ class ProviderMapper extends QBMapper {
 			if ($discoveryuri !== null) {
 				$provider->setDiscoveryEndpoint($discoveryuri);
 			}
-			if ($bearerSecret !== null) {
+			if ($bearersecret !== null) {
 				$provider->setBearerSecret($bearersecret);
 			}
 			$provider->setScope($scope);
