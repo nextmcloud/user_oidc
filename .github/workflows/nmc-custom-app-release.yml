@@ -51,12 +51,10 @@ jobs:
   composerdep:
     strategy:
       fail-fast: false
-      matrix:
-        custombase: [ "main" ]
     uses: ./.github/workflows/nmc-custom-oidc-composer.yml
     needs: assemble-custom
     with:
-      assembly: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
+      assembly: ${{ format('customisation-{0}-{1}', inputs.branch, inputs.increment) }}
     secrets: inherit
     
   build-custom:
