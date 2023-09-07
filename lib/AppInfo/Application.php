@@ -33,7 +33,9 @@ use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\SettingsService;
-use OCA\UserOIDC\User\Backend;
+use OCA\UserOIDC\Service\ProvisioningService;
+use OCA\UserOIDC\Service\ProvisioningEventService;
+use OCA\UserOIDC\MagentaBearer\MBackend;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -44,6 +46,7 @@ use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
 use Throwable;
+use Psr\Container\ContainerInterface;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'user_oidc';
@@ -57,11 +60,19 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		// Register the composer autoloader required for the added jwt-token libs 
+		include_once __DIR__ . '/../../vendor/autoload.php';
+
+		// override registration of provisioning srevice to use event-based solution
+		$this->getContainer()->registerService(ProvisioningService::class, function (ContainerInterface $c): ProvisioningService {
+			return $c->get(ProvisioningEventService::class);
+		});
+
 		/** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
 		/* Register our own user backend */
-		$this->backend = $this->getContainer()->get(Backend::class);
+		$this->backend = $this->getContainer()->get(MBackend::class);
 		$userManager->registerBackend($this->backend);
 		OC_User::useBackend($this->backend);
 
