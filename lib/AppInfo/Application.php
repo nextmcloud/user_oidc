@@ -60,7 +60,7 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
-		// Register the composer autoloader required for the added jwt-token libs 
+		// Register the composer autoloader required for the added jwt-token libs
 		include_once __DIR__ . '/../../vendor/autoload.php';
 
 		// override registration of provisioning srevice to use event-based solution
