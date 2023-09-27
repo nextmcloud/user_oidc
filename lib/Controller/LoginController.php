@@ -734,4 +734,20 @@ class LoginController extends BaseOidcController {
 		}
 		return $response;
 	}
+
+	/**
+	 * Backward compatible function for MagentaCLOUD to smoothly transition to new config
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 * @BruteForceProtection(action=userOidcBackchannelLogout)
+	 *
+	 * @param string $logout_token
+	 * @return JSONResponse
+	 * @throws Exception
+	 * @throws \JsonException
+	 */
+	public function telekomBackChannelLogout(string $logout_token = '') {
+		return $this->backChannelLogout('Telekom', $logout_token);
+	}
 }
