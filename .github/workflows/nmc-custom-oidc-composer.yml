@@ -1,0 +1,81 @@
+###
+# SPDX-License-Identifier: AGPL-3.0
+#
+# Author: Bernd Rederlechner <bernd.rederlechner@t-systems.com
+#
+# user_oidc is (so far) the only app where we add php packages
+# to Nextcloud standard. We add these commandline based in build
+# to avoid continuous merge conflicts due to "composer.lock"
+# merge problems
+
+name: MCLOUD custom user_oidc dependencies
+
+
+on:
+  workflow_call:
+    inputs:
+      assembly:
+        description: name of the customisation assembly branch
+        required: true
+        type: string
+
+jobs:
+  build-custom:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_USER:    ${{ github.actor }}
+      BUILD_EMAIL:   ${{ github.actor }}@users.noreply.github.com
+      BUILD_TOKEN:   ${{ secrets.BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+      PHP_VERSION:   ${{ vars.PHP_VERSION || '8.1' }}
+    steps:
+      - name: Fetch custom assembly
+        id:   checkout_custom
+        uses: actions/checkout@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ inputs.assembly }}
+          fetch-depth: 0
+          token: ${{ env.BUILD_TOKEN }}
+
+      - name: Prepare GIT modifications
+        id:   prepare_git        
+        run: |
+          # set user in case commits are needed
+          git config user.name $BUILD_USER
+          git config user.email $BUILD_EMAIL
+
+      # install php dependencies
+      - name: Set up php ${{ env.PHP_VERSION }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          coverage: none
+  
+      - name: Check composer.json
+        id: check_composer
+        uses: andstor/file-existence-action@v1
+        with:
+          files: "./composer.json"
+  
+      - name: Install composer JWT dependencies
+        if: steps.check_composer.outputs.files_exists == 'true'
+        run: |
+          composer require web-token/jwt-core:^2.0 \
+            web-token/jwt-encryption:^2.2 \
+            web-token/jwt-signature:^2.2 \
+            web-token/jwt-encryption-algorithm-aescbc:^2.2 \
+            web-token/jwt-encryption-algorithm-ecdh-es:^2.2 \
+            web-token/jwt-encryption-algorithm-rsa:^2.2 \
+            web-token/jwt-encryption-algorithm-pbes2:^2.2 \
+            web-token/jwt-signature-algorithm-hmac:^2.2 \
+            web-token/jwt-signature-algorithm-rsa:^2.2 \
+            web-token/jwt-util-ecc:^2.2
+
+      - name: Commit push composer.json/.lock '${{ env.CUSTOM_BRANCH }}'
+        id: pushcomposerdep
+        run: |
+          git commit -m "Add jwt-token composer library dependencies" composer.json composer.lock
+          git push origin $CUSTOM_BRANCH
+          
