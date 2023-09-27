@@ -29,6 +29,8 @@ return [
 		['name' => 'login#code', 'url' => '/code', 'verb' => 'GET'],
 		['name' => 'login#singleLogoutService', 'url' => '/sls', 'verb' => 'GET'],
 		['name' => 'login#backChannelLogout', 'url' => '/backchannel-logout/{providerIdentifier}', 'verb' => 'POST'],
+		// compatibility with NMC V24 until reconfig on SAM
+		['name' => 'login#telekomBackChannelLogout', 'url' => '/logout', 'verb' => 'POST'],
 
 		// this is a security problem combined with Telekom provisioning, so we habe to disable the endpoint
 		// ['name' => 'api#createUser', 'url' => '/user', 'verb' => 'POST'],
