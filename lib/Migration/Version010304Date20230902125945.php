@@ -55,15 +55,14 @@ class Version010304Date20230902125945 extends SimpleMigrationStep {
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options) {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
+		$tableName = 'user_oidc_providers';
 
-		foreach (['user_oidc_providers', 'user_oidc_id4me'] as $tableName) {
-			if ($schema->hasTable($tableName)) {
-				$table = $schema->getTable($tableName);
-				if ($table->hasColumn('bearer_secret')) {
-					$column = $table->getColumn('bearer_secret');
-					$column->setLength(512);
-					return $schema;
-				}
+		if ($schema->hasTable($tableName)) {
+			$table = $schema->getTable($tableName);
+			if ($table->hasColumn('bearer_secret')) {
+				$column = $table->getColumn('bearer_secret');
+				$column->setLength(512);
+				return $schema;
 			}
 		}
 
@@ -71,28 +70,28 @@ class Version010304Date20230902125945 extends SimpleMigrationStep {
 	}
 
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
+		$tableName = 'user_oidc_providers';
+
 		// update secrets in user_oidc_providers and user_oidc_id4me
-		foreach (['user_oidc_providers', 'user_oidc_id4me'] as $tableName) {
-			$qbUpdate = $this->connection->getQueryBuilder();
-			$qbUpdate->update($tableName)
+		$qbUpdate = $this->connection->getQueryBuilder();
+		$qbUpdate->update($tableName)
 				->set('bearer_secret', $qbUpdate->createParameter('updateSecret'))
 				->where(
 					$qbUpdate->expr()->eq('id', $qbUpdate->createParameter('updateId'))
 				);
 
-			$qbSelect = $this->connection->getQueryBuilder();
-			$qbSelect->select('id', 'bearer_secret')
+		$qbSelect = $this->connection->getQueryBuilder();
+		$qbSelect->select('id', 'bearer_secret')
 				->from($tableName);
-			$req = $qbSelect->executeQuery();
-			while ($row = $req->fetch()) {
-				$id = $row['id'];
-				$secret = $row['bearer_secret'];
-				$encryptedSecret = $this->crypto->encrypt($secret);
-				$qbUpdate->setParameter('updateSecret', $encryptedSecret, IQueryBuilder::PARAM_STR);
-				$qbUpdate->setParameter('updateId', $id, IQueryBuilder::PARAM_INT);
-				$qbUpdate->executeStatement();
-			}
-			$req->closeCursor();
+		$req = $qbSelect->executeQuery();
+		while ($row = $req->fetch()) {
+			$id = $row['id'];
+			$secret = $row['bearer_secret'];
+			$encryptedSecret = $this->crypto->encrypt($secret);
+			$qbUpdate->setParameter('updateSecret', $encryptedSecret, IQueryBuilder::PARAM_STR);
+			$qbUpdate->setParameter('updateId', $id, IQueryBuilder::PARAM_INT);
+			$qbUpdate->executeStatement();
 		}
+		$req->closeCursor();
 	}
 }
