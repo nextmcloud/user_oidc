@@ -46,7 +46,7 @@
 				:required="!update"
 				autocomplete="off">
 		</p>
-        <p>
+		<p>
 			<label for="oidc-bearer-secret">{{ t('user_oidc', 'Bearer shared secret') }}</label>
 			<input id="oidc-bearer-secret"
 				v-model="localProvider.bearerSecret"
