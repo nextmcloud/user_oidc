@@ -104,13 +104,12 @@ class Application extends App implements IBootstrap {
 	 * This is the automatic redirect exclusively for Nextcloud/Magentacloud clients
 	 * completely skipping consent layer
 	 */
-	private function registerNmcClientFlow(IRequest $request, 
-            IURLGenerator $urlGenerator,
-            ProviderMapper $providerMapper, 
-            ISession $session, 
-            ISecureRandom $random): void {
-		
-        $providers = $this->getCachedProviders($providerMapper);
+	private function registerNmcClientFlow(IRequest $request,
+			IURLGenerator $urlGenerator,
+			ProviderMapper $providerMapper,
+			ISession $session,
+			ISecureRandom $random): void {
+		$providers = $this->getCachedProviders($providerMapper);
 
 		// Handle immediate redirect on client first-time login
 		$isClientLoginFlow = false;
@@ -125,33 +124,33 @@ class Application extends App implements IBootstrap {
 				return strtolower($p->getIdentifier()) === "telekom";
 			}));
 			if (count($tproviders) == 0) {
-                // always show normal login flow as error fallback
-                return;
-            }
+				// always show normal login flow as error fallback
+				return;
+			}
 
-            $stateToken = $random->generate(
-                64,
-                ISecureRandom::CHAR_LOWER.ISecureRandom::CHAR_UPPER.ISecureRandom::CHAR_DIGITS
-            );
-            $session->set('client.flow.state.token', $stateToken);
+			$stateToken = $random->generate(
+				64,
+				ISecureRandom::CHAR_LOWER.ISecureRandom::CHAR_UPPER.ISecureRandom::CHAR_DIGITS
+			);
+			$session->set('client.flow.state.token', $stateToken);
  
-            // call the service to get the params, but suppress the template
-            // compute grant redirect Url to go directly to Telekom login
-            $redirectUrl = $urlGenerator->linkToRoute('core.ClientFlowLogin.grantPage', [
-                'stateToken' => $stateToken,
-                // grantPage service operation is deriving oauth2 client name (again),
-                // so we simply pass on clientIdentifier or empty string 
-                'clientIdentifier' => $request->getParam('clientIdentifier', ''),
-                'direct' => $request->getParam('direct', '0')
-            ]);
-            if ($redirectUrl === null) {
-                // always show normal login flow as error fallback
-                return;
-            }
+			// call the service to get the params, but suppress the template
+			// compute grant redirect Url to go directly to Telekom login
+			$redirectUrl = $urlGenerator->linkToRoute('core.ClientFlowLogin.grantPage', [
+				'stateToken' => $stateToken,
+				// grantPage service operation is deriving oauth2 client name (again),
+				// so we simply pass on clientIdentifier or empty string
+				'clientIdentifier' => $request->getParam('clientIdentifier', ''),
+				'direct' => $request->getParam('direct', '0')
+			]);
+			if ($redirectUrl === null) {
+				// always show normal login flow as error fallback
+				return;
+			}
 
-            // direct login, consent layer later
+			// direct login, consent layer later
 			$targetUrl = $urlGenerator->linkToRoute(self::APP_ID . '.login.login', [
-			    'providerId' => $tproviders[0]->getId(),
+				'providerId' => $tproviders[0]->getId(),
 				'redirectUrl' => $redirectUrl
 			]);
 			header('Location: ' . $targetUrl);
