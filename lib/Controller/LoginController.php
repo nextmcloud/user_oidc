@@ -224,11 +224,9 @@ class LoginController extends BaseOidcController {
 
 		// check if oidc state is present in session data
 		if($this->session->exists(self::STATE)) {
-			$oidcState = true;
 			$state = $this->session->get(self::STATE);
 			$nonce = $this->session->get(self::NONCE);
 		} else {
-			$oidcState = false;
 			$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
 			$this->session->set(self::STATE, $state);
 			$this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
