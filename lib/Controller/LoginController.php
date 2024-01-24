@@ -223,7 +223,7 @@ class LoginController extends BaseOidcController {
 		}
 
 		// check if oidc state is present in session data
-		if($this->session->exists(self::STATE)) {
+		if ($this->session->exists(self::STATE)) {
 			$state = $this->session->get(self::STATE);
 			$nonce = $this->session->get(self::NONCE);
 		} else {
