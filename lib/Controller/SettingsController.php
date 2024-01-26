@@ -64,7 +64,7 @@ class SettingsController extends Controller {
 	}
 
 	public function createProvider(string $identifier, string $clientId, string $clientSecret, string $discoveryEndpoint,
-								   array $settings = [], string $scope = 'openid email profile'): JSONResponse {
+									string $bearerSecret, array $settings = [], string $scope = 'openid email profile'): JSONResponse {
 		if ($this->providerService->getProviderByIdentifier($identifier) !== null) {
 			return new JSONResponse(['message' => 'Provider with the given identifier already exists'], Http::STATUS_CONFLICT);
 		}
@@ -76,6 +76,8 @@ class SettingsController extends Controller {
 		$provider->setClientSecret($encryptedClientSecret);
 		$provider->setDiscoveryEndpoint($discoveryEndpoint);
 		$provider->setScope($scope);
+		$encryptedBearerSecret = $this->crypto->encrypt(\Base64Url\Base64Url::encode($bearerSecret));
+		$provider->setBearerSecret($encryptedBearerSecret);
 		$provider = $this->providerMapper->insert($provider);
 
 		$providerSettings = $this->providerService->setSettings($provider->getId(), $settings);
@@ -84,7 +86,7 @@ class SettingsController extends Controller {
 	}
 
 	public function updateProvider(int $providerId, string $identifier, string $clientId, string $discoveryEndpoint, string $clientSecret = null,
-								   array $settings = [], string $scope = 'openid email profile'): JSONResponse {
+									string $bearerSecret = null, array $settings = [], string $scope = 'openid email profile'): JSONResponse {
 		$provider = $this->providerMapper->getProvider($providerId);
 
 		if ($this->providerService->getProviderByIdentifier($identifier) === null) {
@@ -96,6 +98,9 @@ class SettingsController extends Controller {
 		if ($clientSecret) {
 			$encryptedClientSecret = $this->crypto->encrypt($clientSecret);
 			$provider->setClientSecret($encryptedClientSecret);
+		}
+		if ($bearerSecret) {
+			$provider->setBearerSecret(\Base64Url\Base64Url::encode($bearerSecret));
 		}
 		$provider->setDiscoveryEndpoint($discoveryEndpoint);
 		$provider->setScope($scope);
