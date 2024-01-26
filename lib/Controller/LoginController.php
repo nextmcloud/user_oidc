@@ -513,7 +513,6 @@ class LoginController extends BaseOidcController {
 		$this->session->remove(self::STATE);
 		$this->session->remove(self::REDIRECT_AFTER_LOGIN);
 		$this->session->remove(self::NONCE);
-		$this->session->remove(self::PROVIDERID);
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
