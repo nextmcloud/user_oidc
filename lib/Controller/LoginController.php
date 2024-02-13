@@ -511,7 +511,6 @@ class LoginController extends BaseOidcController {
 
 		// remove code login session values
 		$this->session->remove(self::STATE);
-		$this->session->remove(self::REDIRECT_AFTER_LOGIN);
 		$this->session->remove(self::NONCE);
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
