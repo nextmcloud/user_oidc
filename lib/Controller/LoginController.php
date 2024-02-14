@@ -36,6 +36,8 @@ use OCA\UserOIDC\Event\TokenObtainedEvent;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\EventProvisioningService;
+use OCA\UserOIDC\Service\ProvisioningDeniedException;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
 use OCA\UserOIDC\AppInfo\Application;
@@ -117,6 +119,9 @@ class LoginController extends BaseOidcController {
 
 	/** @var SessionMapper */
 	private $sessionMapper;
+
+	/** @var EventProvisioningService */
+	private $eventProvisioningService;
 
 	/** @var ProvisioningService */
 	private $provisioningService;
@@ -475,7 +480,23 @@ class LoginController extends BaseOidcController {
 
 		// Provisioning
 		if ($autoProvisionAllowed) {
-			$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload);
+			// TODO: (proposal) refactor all provisioning strategies into event handlers
+			$user = null;
+			try {
+				$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload);
+			} catch (ProvisioningDeniedException $denied) {
+				// TODO MagentaCLOUD should upstream the exception handling
+				$redirectUrl = $denied->getRedirectUrl();
+				if ($redirectUrl === null) {
+					$message = $this->l10n->t('Failed to provision user');
+					return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => $denied->getMessage()]);
+				} else {
+					// error response is a redirect, e.g. to a booking site
+					// so that you can immediately get the registration page
+					return new RedirectResponse($redirectUrl);
+				}
+			}
+			// no default exception handling to pass on unittest assertion failures
 		} else {
 			// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
 			// so new users will be directly available even if they were not synced before this login attempt
@@ -566,7 +587,8 @@ class LoginController extends BaseOidcController {
 					$endSessionEndpoint .= '&client_id=' . $provider->getClientId();
 					$shouldSendIdToken = $this->providerService->getSetting(
 						$provider->getId(),
-						ProviderService::SETTING_SEND_ID_TOKEN_HINT, '0'
+						ProviderService::SETTING_SEND_ID_TOKEN_HINT,
+						'0'
 					) === '1';
 					$idToken = $this->session->get(self::ID_TOKEN);
 					if ($shouldSendIdToken && $idToken) {
@@ -715,8 +737,12 @@ class LoginController extends BaseOidcController {
 	 * @param bool|null $throttle
 	 * @return JSONResponse
 	 */
-	private function getBackchannelLogoutErrorResponse(string $error, string $description,
-													   array $throttleMetadata = [], ?bool $throttle = null): JSONResponse {
+	private function getBackchannelLogoutErrorResponse(
+		string $error,
+		string $description,
+		array $throttleMetadata = [],
+		?bool $throttle = null
+	): JSONResponse {
 		$this->logger->debug('Backchannel logout error. ' . $error . ' ; ' . $description);
 		$response = new JSONResponse(
 			[
