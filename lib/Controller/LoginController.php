@@ -227,14 +227,21 @@ class LoginController extends BaseOidcController {
 			return $this->buildErrorTemplateResponse($message, Http::STATUS_NOT_FOUND, ['provider_not_found' => $providerId]);
 		}
 
-		$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$this->session->set(self::STATE, $state);
-		$this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
+		// check if oidc state is present in session data
+		if ($this->session->exists(self::STATE)) {
+			$state = $this->session->get(self::STATE);
+			$nonce = $this->session->get(self::NONCE);
+		} else {
+			$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+			$this->session->set(self::STATE, $state);
+			$this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
 
-		$nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$this->session->set(self::NONCE, $nonce);
+			$nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+			$this->session->set(self::NONCE, $nonce);
 
-		$this->session->set(self::PROVIDERID, $providerId);
+			$this->session->set(self::PROVIDERID, $providerId);
+		}
+
 		$this->session->close();
 
 		// get attribute mapping settings
@@ -522,6 +529,10 @@ class LoginController extends BaseOidcController {
 		$this->userSession->completeLogin($user, ['loginName' => $user->getUID(), 'password' => '']);
 		$this->userSession->createSessionToken($this->request, $user->getUID(), $user->getUID());
 		$this->userSession->createRememberMeToken($user);
+
+		// remove code login session values
+		$this->session->remove(self::STATE);
+		$this->session->remove(self::NONCE);
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
