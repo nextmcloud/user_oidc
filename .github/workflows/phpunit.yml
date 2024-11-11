@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: MIT
 name: PHPUnit
 
 on:
@@ -19,24 +21,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php-versions: ['7.4', '8.0', '8.1']
+        php-versions: ['8.0', '8.1', '8.2']
         databases: ['mysql']
-        server-versions: ['stable24', 'stable25', 'stable26', 'stable27', 'master']
+        server-versions: ['stable26', 'stable27', 'stable28', 'stable29', 'stable30', 'master']
         exclude:
-          - php-versions: 7.4
+          - php-versions: 8.0
             server-versions: master
-          - php-versions: 7.4
-            server-versions: stable27
-          - php-versions: 7.4
-            server-versions: stable26
+          - php-versions: 8.0
+            server-versions: stable30
         include:
-          - php-versions: 8.2
+          - php-versions: 8.3
             databases: mysql
-            server-versions: stable26
-          - php-versions: 8.2
+            server-versions: stable28
+          - php-versions: 8.3
             databases: mysql
-            server-versions: stable27
-          - php-versions: 8.2
+            server-versions: stable29
+          - php-versions: 8.3
+            databases: mysql
+            server-versions: stable30
+          - php-versions: 8.3
             databases: mysql
             server-versions: master
 

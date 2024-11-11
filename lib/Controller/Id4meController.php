@@ -2,42 +2,28 @@
 
 declare(strict_types=1);
 /**
- * @copyright Copyright (c) 2020, Roeland Jago Douma <roeland@famdouma.nl>
- *
- * @author Roeland Jago Douma <roeland@famdouma.nl>
- *
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\UserOIDC\Controller;
 
 use Id4me\RP\Exception\InvalidAuthorityIssuerException;
 use Id4me\RP\Exception\OpenIdDnsRecordNotFoundException;
+use OC\User\Session as OC_UserSession;
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\Id4Me;
 use OCA\UserOIDC\Db\Id4MeMapper;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Helper\HttpClientHelper;
+use OCA\UserOIDC\Service\ID4MeService;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Http\Client\IClientService;
 use OCP\IConfig;
 use OCP\IL10N;
@@ -50,71 +36,39 @@ use OCP\Security\ICrypto;
 use OCP\Security\ISecureRandom;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
-use Id4me\RP\Service;
 use Id4me\RP\Exception\InvalidOpenIdDomainException;
 use Id4me\RP\Model\OpenIdConfig;
+use Id4me\RP\Service;
+use OCP\Util;
 use Psr\Log\LoggerInterface;
 
 class Id4meController extends BaseOidcController {
 	private const STATE = 'oidc.state';
 	private const NONCE = 'oidc.nonce';
 	private const AUTHNAME = 'oidc.authname';
-
-	/** @var ISecureRandom */
-	private $random;
-	/** @var ISession */
-	private $session;
-	/** @var IClientService */
-	private $clientService;
-	/** @var IURLGenerator */
-	private $urlGenerator;
-	/** @var UserMapper */
-	private $userMapper;
-	/** @var IUserSession */
-	private $userSession;
-	/** @var IUserManager */
-	private $userManager;
-	/** @var Id4MeMapper */
-	private $id4MeMapper;
-	/** @var Service */
-	private $id4me;
-	/** @var IL10N */
-	private $l10n;
-	/** @var LoggerInterface */
-	private $logger;
-	/** @var ICrypto */
-	private $crypto;
+	private Service $id4me;
 
 	public function __construct(
 		IRequest $request,
-		ISecureRandom $random,
-		ISession $session,
+		private ISecureRandom $random,
+		private ISession $session,
 		IConfig $config,
-		IL10N $l10n,
-		IClientService $clientService,
-		IURLGenerator $urlGenerator,
-		UserMapper $userMapper,
-		IUserSession $userSession,
-		IUserManager $userManager,
+		private IL10N $l10n,
+		private ITimeFactory $timeFactory,
+		private IClientService $clientService,
+		private IURLGenerator $urlGenerator,
+		private UserMapper $userMapper,
+		private IUserSession $userSession,
+		private IUserManager $userManager,
 		HttpClientHelper $clientHelper,
-		Id4MeMapper $id4MeMapper,
-		LoggerInterface $logger,
-		ICrypto $crypto
+		private Id4MeMapper $id4MeMapper,
+		private ID4MeService $id4MeService,
+		private LoggerInterface $logger,
+		private ICrypto $crypto,
 	) {
 		parent::__construct($request, $config);
 
-		$this->random = $random;
-		$this->session = $session;
-		$this->clientService = $clientService;
-		$this->urlGenerator = $urlGenerator;
-		$this->userMapper = $userMapper;
-		$this->userSession = $userSession;
-		$this->userManager = $userManager;
 		$this->id4me = new Service($clientHelper);
-		$this->id4MeMapper = $id4MeMapper;
-		$this->l10n = $l10n;
-		$this->logger = $logger;
-		$this->crypto = $crypto;
 	}
 
 	/**
@@ -123,6 +77,12 @@ class Id4meController extends BaseOidcController {
 	 * @UseSession
 	 */
 	public function showLogin() {
+		if (!$this->id4MeService->getID4ME()) {
+			$message = $this->l10n->t('ID4Me is disabled');
+			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
+		}
+
+		Util::addStyle(Application::APP_ID, 'id4me-login');
 		$response = new Http\TemplateResponse('user_oidc', 'id4me/login', [], 'guest');
 
 		$csp = new Http\ContentSecurityPolicy();
@@ -142,9 +102,14 @@ class Id4meController extends BaseOidcController {
 	 * @return RedirectResponse|TemplateResponse
 	 */
 	public function login(string $domain) {
+		if (!$this->id4MeService->getID4ME()) {
+			$message = $this->l10n->t('ID4Me is disabled');
+			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
+		}
+
 		try {
 			$authorityName = $this->id4me->discover($domain);
-		} catch (InvalidOpenIdDomainException | OpenIdDnsRecordNotFoundException $e) {
+		} catch (InvalidOpenIdDomainException|OpenIdDnsRecordNotFoundException $e) {
 			$message = $this->l10n->t('Invalid OpenID domain');
 			return $this->buildErrorTemplateResponse($message, Http::STATUS_BAD_REQUEST, ['invalid_openid_domain' => $domain]);
 		}
@@ -211,6 +176,11 @@ class Id4meController extends BaseOidcController {
 	 * @throws \Exception
 	 */
 	public function code(string $state = '', string $code = '', string $scope = '') {
+		if (!$this->id4MeService->getID4ME()) {
+			$message = $this->l10n->t('ID4Me is disabled');
+			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
+		}
+
 		if ($this->session->get(self::STATE) !== $state) {
 			$this->logger->debug('state does not match');
 
@@ -238,7 +208,7 @@ class Id4meController extends BaseOidcController {
 
 		try {
 			$id4Me = $this->id4MeMapper->findByIdentifier($authorityName);
-		} catch (DoesNotExistException | MultipleObjectsReturnedException $e) {
+		} catch (DoesNotExistException|MultipleObjectsReturnedException $e) {
 			$message = $this->l10n->t('Authority not found');
 			return $this->buildErrorTemplateResponse($message, Http::STATUS_BAD_REQUEST, ['authority_not_found' => $authorityName]);
 		}
@@ -270,6 +240,10 @@ class Id4meController extends BaseOidcController {
 
 		$data = json_decode($result->getBody(), true);
 
+		// documentation about token validation:
+		// https://gitlab.com/ID4me/documentation/blob/master/id4ME%20Relying%20Party%20Implementation%20Guide.pdf
+		// section 4.5.3. ID Token Validation
+
 		// Decode header and token
 		[$header, $payload, $signature] = explode('.', $data['id_token']);
 		$plainHeaders = json_decode(base64_decode($header), true);
@@ -277,23 +251,54 @@ class Id4meController extends BaseOidcController {
 
 		/** TODO: VALIATE SIGNATURE! */
 
-		// TODO: validate expiration
+		// Check expiration
+		if ($plainPayload['exp'] < $this->timeFactory->getTime()) {
+			$this->logger->debug('Token expired');
+			$message = $this->l10n->t('The received token is expired.');
+			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['reason' => 'token expired']);
+		}
 
 		// Verify audience
-		if ($plainPayload['aud'] !== $id4Me->getClientId()) {
+		if (!(
+			$plainPayload['aud'] === $id4Me->getClientId()
+			|| (is_array($plainPayload['aud']) && in_array($id4Me->getClientId(), $plainPayload['aud'], true))
+		)) {
+			$this->logger->debug('This token is not for us');
 			$message = $this->l10n->t('The audience does not match ours');
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['invalid_audience' => $plainPayload['aud']]);
 		}
 
-		// TODO: VALIDATE NONCE (if set)
+		// If the ID Token contains multiple audiences, the Client SHOULD verify that an azp Claim is present.
+		// If an azp (authorized party) Claim is present, the Client SHOULD verify that its client_id is the Claim Value.
+		if (is_array($plainPayload['aud']) && count($plainPayload['aud']) > 1) {
+			if (isset($plainPayload['azp'])) {
+				if ($plainPayload['azp'] !== $id4Me->getClientId()) {
+					$this->logger->debug('This token is not for us, authorized party (azp) is different than the client ID');
+					$message = $this->l10n->t('The authorized party does not match ours');
+					return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['invalid_azp' => $plainPayload['azp']]);
+				}
+			} else {
+				$this->logger->debug('Multiple audiences but no authorized party (azp) in the id token');
+				$message = $this->l10n->t('No authorized party');
+				return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['missing_azp']);
+			}
+		}
+
+		// Check nonce
+		if (isset($plainPayload['nonce']) && $plainPayload['nonce'] !== $this->session->get(self::NONCE)) {
+			$message = $this->l10n->t('The nonce does not match');
+			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['invalid_nonce' => $plainPayload['nonce']]);
+		}
 
 		// Insert or update user
 		$backendUser = $this->userMapper->getOrCreate($id4Me->getId(), $plainPayload['sub'], true);
 		$user = $this->userManager->get($backendUser->getUserId());
 
 		$this->userSession->setUser($user);
-		$this->userSession->completeLogin($user, ['loginName' => $user->getUID(), 'password' => '']);
-		$this->userSession->createSessionToken($this->request, $user->getUID(), $user->getUID());
+		if ($this->userSession instanceof OC_UserSession) {
+			$this->userSession->completeLogin($user, ['loginName' => $user->getUID(), 'password' => '']);
+			$this->userSession->createSessionToken($this->request, $user->getUID(), $user->getUID());
+		}
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));

@@ -1,8 +1,154 @@
+<!--
+  - SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 # Changelog
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## 6.1.2 – 2024-10-30
+
+### Fixed
+
+- Fix state token missing while trying to login using Nextcloud Desktop (login flow) @joselameira [#971](https://github.com/nextcloud/user_oidc/pull/971)
+
+## 6.1.1 – 2024-10-22
+
+### Fixed
+
+- Ensure providerClientId is declared when validating bearer tokens @artonge [#969](https://github.com/nextcloud/user_oidc/pull/969)
+
+## 6.1.0 – 2024-10-15
+
+### Added
+
+- feat(provisioning): New system config flag to disable user creation in soft auto provisioning @julien-nc [#954](https://github.com/nextcloud/user_oidc/pull/954)
+- feat(ApiController): Add endpoint to de-provision user @edward-ly [#960](https://github.com/nextcloud/user_oidc/pull/960)
+- Add an OCS API controller for pre-provisioning and de-provisioning @julien-nc [#963](https://github.com/nextcloud/user_oidc/pull/963)
+
+### Changed
+
+- Make aud and azp checks optional when logging in or validating a bearer token @julien-nc [#921](https://github.com/nextcloud/user_oidc/pull/921)
+- Bump max NC version to 31
+
+### Fixed
+
+- Fix provisioning mistake when setting role @julien-nc [#930](https://github.com/nextcloud/user_oidc/pull/930)
+- Fix LoginController: revert default `token_endpoint_auth_method` value @edward-ly [#946](https://github.com/nextcloud/user_oidc/pull/946)
+- Fix integration tests sometimes not finding docker-compose but 'docker compose' @julien-nc [#953](https://github.com/nextcloud/user_oidc/pull/953)
+- Backchannel logout endpoint should only return 200 or 400 @julien-nc [#955](https://github.com/nextcloud/user_oidc/pull/955)
+- Use correct userId when getting user folder in provisioning endpoint if unique-uid is enabled @julien-nc [#958](https://github.com/nextcloud/user_oidc/pull/958)
+- Re-enable PKCE by default (if supported by the IdP) @edward-ly [#956](https://github.com/nextcloud/user_oidc/pull/956)
+- Prevent redirecting to an absolute URL after login @julien-nc [#961](https://github.com/nextcloud/user_oidc/pull/961)
+- Fix provisioning: If address attr is an object but can't be parsed to an array, give null to the 'attr mapped' event @julien-nc [#948](https://github.com/nextcloud/user_oidc/pull/948)
+
+## 6.0.1 – 2024-07-26
+
+### Fixed
+
+- Many fixes in ProvisioningServer @julien-nc [#905](https://github.com/nextcloud/user_oidc/pull/905)
+
+## 6.0.0 – 2024-07-23
+
+### Changed
+
+- Update npm pkgs
+- Use nextcloud/vue 8.15.0
+- Support more token endpoint authentication methods @xataxxx [#897](https://github.com/nextcloud/user_oidc/pull/897)
+
+### Fixed
+
+- Set avatar on login @julien-nc [#838](https://github.com/nextcloud/user_oidc/pull/838)
+- Fix small accessibility issue with NcModal @julien-nc
+
+## 5.0.3 – 2024-06-21
+
+### Added
+
+- Support search by email in the user backend @tcoupin [#815](https://github.com/nextcloud/user_oidc/pull/815)
+
+### Changed
+
+- Improve the stub so it's not confusing IDEs @nickvergessen @julien-nc [#862](https://github.com/nextcloud/user_oidc/pull/862) [#863](https://github.com/nextcloud/user_oidc/pull/863)
+- Set group displayname when provisioning @towo @julien-nc [#880](https://github.com/nextcloud/user_oidc/pull/880)
+- Add issuer, audience and azp checks in bearer token validator @julien-nc [#864](https://github.com/nextcloud/user_oidc/pull/864)
+- Allow to disable default quota, displayName, groups and email claims @julien-nc [#883](https://github.com/nextcloud/user_oidc/pull/883)
+
+### Fixed
+
+- Fix, improve and refactor the upsert occ command @julien-nc [#860](https://github.com/nextcloud/user_oidc/pull/860)
+- Fix biography attr being used to set the account gender @julien-nc [#888](https://github.com/nextcloud/user_oidc/pull/888)
+
+## 5.0.2 – 2024-03-18
+
+### Changed
+
+- Update npm packages
+
+### Fixed
+
+- Stop using missing OC::->getEventDispatcher method (dropped in NC 28) @julien-nc [#818](https://github.com/nextcloud/user_oidc/pull/818)
+
+## 5.0.1 – 2024-02-28
+
+### Added
+
+- Soft auto-provisioning @julien-nc [#730](https://github.com/nextcloud/user_oidc/pull/730)
+
+### Fixed
+
+- Prevent using ID4ME routes if ID4ME is disabled @julien-nc
+- Fix(login): user get null check @skjnldsv [#789](https://github.com/nextcloud/user_oidc/pull/789)
+
+## 1.3.6 – 2024-01-29
+
+### Added
+
+- Customizeable end session endpoint @nc-fkl [#724](https://github.com/nextcloud/user_oidc/pull/724)
+- Implement ICountUsersBackend to give a user count in 'occ user:report' @julien-nc [#733](https://github.com/nextcloud/user_oidc/pull/733)
+- Many additional user attribute mapping @nc-fkl [#729](https://github.com/nextcloud/user_oidc/pull/729)
+- Psalm checks @julien-nc [#765](https://github.com/nextcloud/user_oidc/pull/765)
+- Ensure the discovery endpoint result is valid @nc-fkl [#750](https://github.com/nextcloud/user_oidc/pull/750)
+
+### Changed
+
+- Bump max NC version to 29 @julien-nc [#717](https://github.com/nextcloud/user_oidc/pull/717)
+- Bump min NC version to 25 @julien-nc [#765](https://github.com/nextcloud/user_oidc/pull/765)
+- Increased database column length for client id and secret @nc-fkl [#711](https://github.com/nextcloud/user_oidc/pull/711)
+- Make PKCE optional @julien-nc [#740](https://github.com/nextcloud/user_oidc/pull/740)
+- Update nextcloud/vue to v8 @julien-nc [#763](https://github.com/nextcloud/user_oidc/pull/763)
+
+### Fixed
+
+- Avoid a lot of error log on token validation failure @aro-lew [#721](https://github.com/nextcloud/user_oidc/pull/721)
+- Avoid identifier edition when editing a provider @nc-fkl [#714](https://github.com/nextcloud/user_oidc/pull/714)
+
+## 1.3.5 – 2023-11-24
+
+### Added
+
+- PKCE support [#697](https://github.com/nextcloud/user_oidc/pull/697) @rullzer @nc-fkl
+
+### Changed
+
+- improve id4me token validation [#715](https://github.com/nextcloud/user_oidc/pull/715) @julien-nc
+
+### Fixed
+
+- fix potentially missing alg in jwks [#713](https://github.com/nextcloud/user_oidc/pull/713) @julien-nc
+
+## 1.3.4
+
+### Changed
+
+- Bump min NC to 24 @julien-nc [#675](https://github.com/nextcloud/user_oidc/pull/675)
+- Upgrade php-jwt, adjust implementation @julien-nc [#675](https://github.com/nextcloud/user_oidc/pull/675)
+
+### Fixed
+
+- Disable password confirmation for SSO @juliushaertl [#668](https://github.com/nextcloud/user_oidc/pull/668)
 
 ## 1.3.3
 

@@ -1,23 +1,7 @@
 <!--
-  - @copyright 2020 Christoph Wurst <christoph@winzerhof-wurst.at>
-  -
-  - @author 2020 Christoph Wurst <christoph@winzerhof-wurst.at>
-  -
-  - @license GNU AGPL version 3 or any later version
-  -
-  - This program is free software: you can redistribute it and/or modify
-  - it under the terms of the GNU Affero General Public License as
-  - published by the Free Software Foundation, either version 3 of the
-  - License, or (at your option) any later version.
-  -
-  - This program is distributed in the hope that it will be useful,
-  - but WITHOUT ANY WARRANTY; without even the implied warranty of
-  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  - GNU Affero General Public License for more details.
-  -
-  - You should have received a copy of the GNU Affero General Public License
-  - along with this program.  If not, see <http://www.gnu.org/licenses/>.
-  -->
+  - SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 
 <template>
 	<div>
@@ -49,9 +33,10 @@
 
 			<NcModal v-if="showNewProvider"
 				size="large"
+				:name="t('user_oidc', 'Register a new provider')"
 				:can-close="false">
 				<div class="providermodal__wrapper">
-					<h3>{{ t('user_oids', 'Register a new provider') }}</h3>
+					<h3>{{ t('user_oidc', 'Register a new provider') }}</h3>
 					<p class="settings-hint">
 						{{ t('user_oidc', 'Configure your provider to redirect back to {url}', { url: redirectUrl }) }}
 					</p>
@@ -99,6 +84,7 @@
 
 			<NcModal v-if="editProvider"
 				size="large"
+				:name="t('user_oidc', 'Update provider settings')"
 				:can-close="false">
 				<div class="providermodal__wrapper">
 					<h3>{{ t('user_oidc', 'Update provider settings') }}</h3>
@@ -165,6 +151,7 @@ export default {
 				clientId: '',
 				clientSecret: '',
 				discoveryEndpoint: '',
+				endSessionEndpoint: '',
 				settings: {
 					uniqueUid: true,
 					checkBearer: false,
@@ -246,6 +233,7 @@ export default {
 				this.newProvider.clientId = ''
 				this.newProvider.clientSecret = ''
 				this.newProvider.discoveryEndpoint = ''
+				this.newProvider.endSessionEndpoint = ''
 				this.showNewProvider = false
 			} catch (error) {
 				logger.error('Could not register a provider: ' + error.message, { error })

@@ -2,25 +2,8 @@
 
 declare(strict_types=1);
 /**
- * @copyright Copyright (c) 2020, Roeland Jago Douma <roeland@famdouma.nl>
- *
- * @author Roeland Jago Douma <roeland@famdouma.nl>
- *
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\UserOIDC\Db;
@@ -28,19 +11,21 @@ namespace OCA\UserOIDC\Db;
 use OCA\UserOIDC\Service\LocalIdService;
 use OCP\AppFramework\Db\IMapperException;
 use OCP\AppFramework\Db\QBMapper;
+use OCP\Cache\CappedMemoryCache;
 use OCP\IDBConnection;
-use OC\Cache\CappedMemoryCache;
 
+/**
+ * @extends QBMapper<User>
+ */
 class UserMapper extends QBMapper {
-	/** @var LocalIdService */
-	private $idService;
 
-	/** @var CappedMemoryCache<User> */
-	private $userCache;
+	private CappedMemoryCache $userCache;
 
-	public function __construct(IDBConnection $db, LocalIdService $idService) {
+	public function __construct(
+		IDBConnection $db,
+		private LocalIdService $idService,
+	) {
 		parent::__construct($db, 'user_oidc', User::class);
-		$this->idService = $idService;
 		$this->userCache = new CappedMemoryCache();
 	}
 
@@ -51,11 +36,12 @@ class UserMapper extends QBMapper {
 	 * @throws \OCP\AppFramework\Db\MultipleObjectsReturnedException
 	 */
 	public function getUser(string $uid): User {
-		if ($this->userCache->hasKey($uid)) {
-			return $this->userCache->get($uid);
+		$cachedUser = $this->userCache->get($uid);
+		if ($cachedUser !== null) {
+			return $cachedUser;
 		}
-		$qb = $this->db->getQueryBuilder();
 
+		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')
 			->from($this->getTableName())
 			->where(
@@ -71,10 +57,16 @@ class UserMapper extends QBMapper {
 	public function find(string $search, $limit = null, $offset = null): array {
 		$qb = $this->db->getQueryBuilder();
 
-		$qb->select('*')
-			->from($this->getTableName())
+		$qb->select('user_id', 'display_name')
+			->from($this->getTableName(), 'u')
+			->leftJoin('u', 'preferences', 'p', $qb->expr()->andX(
+				$qb->expr()->eq('userid', 'user_id'),
+				$qb->expr()->eq('appid', $qb->expr()->literal('settings')),
+				$qb->expr()->eq('configkey', $qb->expr()->literal('email')))
+			)
 			->where($qb->expr()->iLike('user_id', $qb->createPositionalParameter('%' . $this->db->escapeLikeParameter($search) . '%')))
 			->orWhere($qb->expr()->iLike('display_name', $qb->createPositionalParameter('%' . $this->db->escapeLikeParameter($search) . '%')))
+			->orWhere($qb->expr()->iLike('configvalue', $qb->createPositionalParameter('%' . $this->db->escapeLikeParameter($search) . '%')))
 			->orderBy($qb->func()->lower('user_id'), 'ASC')
 			->setMaxResults($limit)
 			->setFirstResult($offset);
@@ -85,10 +77,16 @@ class UserMapper extends QBMapper {
 	public function findDisplayNames(string $search, $limit = null, $offset = null): array {
 		$qb = $this->db->getQueryBuilder();
 
-		$qb->select('*')
-			->from($this->getTableName())
+		$qb->select('user_id', 'display_name')
+			->from($this->getTableName(), 'u')
+			->leftJoin('u', 'preferences', 'p', $qb->expr()->andX(
+				$qb->expr()->eq('userid', 'user_id'),
+				$qb->expr()->eq('appid', $qb->expr()->literal('settings')),
+				$qb->expr()->eq('configkey', $qb->expr()->literal('email')))
+			)
 			->where($qb->expr()->iLike('user_id', $qb->createPositionalParameter('%' . $this->db->escapeLikeParameter($search) . '%')))
 			->orWhere($qb->expr()->iLike('display_name', $qb->createPositionalParameter('%' . $this->db->escapeLikeParameter($search) . '%')))
+			->orWhere($qb->expr()->iLike('configvalue', $qb->createPositionalParameter('%' . $this->db->escapeLikeParameter($search) . '%')))
 			->orderBy($qb->func()->lower('user_id'), 'ASC')
 			->setMaxResults($limit)
 			->setFirstResult($offset);

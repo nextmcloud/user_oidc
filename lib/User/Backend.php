@@ -2,45 +2,29 @@
 
 declare(strict_types=1);
 /**
- * @copyright Copyright (c) 2020, Roeland Jago Douma <roeland@famdouma.nl>
- *
- * @author Roeland Jago Douma <roeland@famdouma.nl>
- *
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\UserOIDC\User;
 
-use OCA\UserOIDC\Db\Provider;
-use OCA\UserOIDC\Event\TokenValidatedEvent;
+use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Controller\LoginController;
+use OCA\UserOIDC\Db\Provider;
+use OCA\UserOIDC\Db\ProviderMapper;
+use OCA\UserOIDC\Db\UserMapper;
+use OCA\UserOIDC\Event\TokenValidatedEvent;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\User\Validator\SelfEncodedValidator;
 use OCA\UserOIDC\User\Validator\UserInfoValidator;
-use OCA\UserOIDC\AppInfo\Application;
-use OCA\UserOIDC\Db\ProviderMapper;
-use OCA\UserOIDC\Db\UserMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\Authentication\IApacheBackend;
 use OCP\DB\Exception;
 use OCP\EventDispatcher\GenericEvent;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IConfig;
 use OCP\IRequest;
@@ -49,86 +33,41 @@ use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserManager;
 use OCP\User\Backend\ABackend;
+use OCP\User\Backend\ICountUsersBackend;
 use OCP\User\Backend\ICustomLogout;
 use OCP\User\Backend\IGetDisplayNameBackend;
 use OCP\User\Backend\IPasswordConfirmationBackend;
 use Psr\Log\LoggerInterface;
 
-class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisplayNameBackend, IApacheBackend, ICustomLogout {
+class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisplayNameBackend, IApacheBackend, ICustomLogout, ICountUsersBackend {
 	private $tokenValidators = [
 		SelfEncodedValidator::class,
 		UserInfoValidator::class,
 	];
 
-	/** @var UserMapper */
-	private $userMapper;
-	/** @var LoggerInterface */
-	private $logger;
-	/** @var IRequest */
-	private $request;
-	/** @var ProviderMapper */
-	private $providerMapper;
-	/**
-	 * @var ProviderService
-	 */
-	private $providerService;
-	/**
-	 * @var IConfig
-	 */
-	private $config;
-	/**
-	 * @var IEventDispatcher
-	 */
-	private $eventDispatcher;
-	/**
-	 * @var DiscoveryService
-	 */
-	private $discoveryService;
-	/**
-	 * @var IURLGenerator
-	 */
-	private $urlGenerator;
-	/**
-	 * @var ISession
-	 */
-	private $session;
-	/**
-	 * @var IUserManager
-	 */
-	private $userManager;
-	/**
-	 * @var LdapService
-	 */
-	private $ldapService;
-
-	public function __construct(IConfig $config,
-								UserMapper $userMapper,
-								LoggerInterface $logger,
-								IRequest $request,
-								ISession $session,
-								IURLGenerator $urlGenerator,
-								IEventDispatcher $eventDispatcher,
-								DiscoveryService $discoveryService,
-								ProviderMapper $providerMapper,
-								ProviderService $providerService,
-								LdapService $ldapService,
-								IUserManager $userManager) {
-		$this->config = $config;
-		$this->userMapper = $userMapper;
-		$this->logger = $logger;
-		$this->request = $request;
-		$this->providerMapper = $providerMapper;
-		$this->providerService = $providerService;
-		$this->eventDispatcher = $eventDispatcher;
-		$this->discoveryService = $discoveryService;
-		$this->session = $session;
-		$this->urlGenerator = $urlGenerator;
-		$this->userManager = $userManager;
-		$this->ldapService = $ldapService;
+	public function __construct(
+		private IConfig $config,
+		private UserMapper $userMapper,
+		private LoggerInterface $logger,
+		private IRequest $request,
+		private ISession $session,
+		private IURLGenerator $urlGenerator,
+		private IEventDispatcher $eventDispatcher,
+		private DiscoveryService $discoveryService,
+		private ProviderMapper $providerMapper,
+		private ProviderService $providerService,
+		private LdapService $ldapService,
+		private IUserManager $userManager,
+	) {
 	}
 
 	public function getBackendName(): string {
 		return Application::APP_ID;
+	}
+
+	public function countUsers(): int {
+		$uids = $this->getUsers();
+		return count($uids);
 	}
 
 	public function deleteUser($uid): bool {
@@ -262,15 +201,36 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 						$this->eventDispatcher->dispatchTyped(new TokenValidatedEvent(['token' => $headerToken], $provider, $discovery));
 
 						if ($autoProvisionAllowed) {
-							$backendUser = $this->userMapper->getOrCreate($provider->getId(), $tokenUserId);
-							$userId = $backendUser->getUserId();
+							// look for user in other backends
+							if (!$this->userManager->userExists($tokenUserId)) {
+								$this->userManager->search($tokenUserId);
+								$this->ldapService->syncUser($tokenUserId);
+							}
+							$userFromOtherBackend = $this->userManager->get($tokenUserId);
+							if ($userFromOtherBackend !== null && $this->ldapService->isLdapDeletedUser($userFromOtherBackend)) {
+								$userFromOtherBackend = null;
+							}
+
+							$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
+							if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null) {
+								// if soft auto-provisioning is disabled,
+								// we refuse login for a user that already exists in another backend
+								return '';
+							}
+							if ($userFromOtherBackend === null) {
+								// only create the user in our backend if the user does not exist in another backend
+								$backendUser = $this->userMapper->getOrCreate($provider->getId(), $tokenUserId);
+								$userId = $backendUser->getUserId();
+							} else {
+								$userId = $userFromOtherBackend->getUID();
+							}
 
 							$this->checkFirstLogin($userId);
 
 							if ($this->providerService->getSetting($provider->getId(), ProviderService::SETTING_BEARER_PROVISIONING, '0') === '1') {
 								$provisioningStrategy = $validator->getProvisioningStrategy();
 								if ($provisioningStrategy) {
-									$this->provisionUser($validator->getProvisioningStrategy(), $provider, $tokenUserId, $headerToken);
+									$this->provisionUser($validator->getProvisioningStrategy(), $provider, $tokenUserId, $headerToken, $userFromOtherBackend);
 								}
 							}
 
@@ -284,6 +244,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 							// to get the user if it has not been synced yet
 							if (!$this->userManager->userExists($tokenUserId)) {
 								$this->userManager->search($tokenUserId);
+								$this->ldapService->syncUser($tokenUserId);
 
 								// return nothing, if the user was not found after the user_ldap search
 								if (!$this->userManager->userExists($tokenUserId)) {
@@ -292,7 +253,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 							}
 
 							$user = $this->userManager->get($tokenUserId);
-							if ($this->ldapService->isLdapDeletedUser($user)) {
+							if ($user === null || $this->ldapService->isLdapDeletedUser($user)) {
 								return '';
 							}
 							$this->checkFirstLogin($tokenUserId);
@@ -334,7 +295,9 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 			}
 
 			// trigger any other initialization
-			\OC::$server->getEventDispatcher()->dispatch(IUser::class . '::firstLogin', new GenericEvent($user));
+			$this->eventDispatcher->dispatch(IUser::class . '::firstLogin', new GenericEvent($user));
+			// TODO add this when user_oidc min NC version is >= 28
+			// $this->eventDispatcher->dispatchTyped(new UserFirstTimeLoggedInEvent($user));
 		}
 		$user->updateLastLoginTimestamp();
 		return $firstLogin;
@@ -344,13 +307,17 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	 * Triggers user provisioning based on the provided strategy
 	 *
 	 * @param string $provisioningStrategyClass
-	 * @param string $tokenUserId
 	 * @param Provider $provider
+	 * @param string $tokenUserId
 	 * @param string $headerToken
+	 * @param IUser|null $userFromOtherBackend
 	 * @return IUser|null
 	 */
-	private function provisionUser(string $provisioningStrategyClass, Provider $provider, string $tokenUserId, string $headerToken): ?IUser {
+	private function provisionUser(
+		string $provisioningStrategyClass, Provider $provider, string $tokenUserId, string $headerToken,
+		?IUser $userFromOtherBackend,
+	): ?IUser {
 		$provisioningStrategy = \OC::$server->get($provisioningStrategyClass);
-		return $provisioningStrategy->provisionUser($provider, $tokenUserId, $headerToken);
+		return $provisioningStrategy->provisionUser($provider, $tokenUserId, $headerToken, $userFromOtherBackend);
 	}
 }

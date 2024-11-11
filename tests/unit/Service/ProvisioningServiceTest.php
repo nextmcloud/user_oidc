@@ -1,19 +1,28 @@
 <?php
 
+/**
+ * SPDX-FileCopyrightText: 2022 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
 use OCA\UserOIDC\Db\User;
 use OCA\UserOIDC\Db\UserMapper;
-use OCA\UserOIDC\Service\LocalIdService;
 use OCA\UserOIDC\Service\LdapService;
+use OCA\UserOIDC\Service\LocalIdService;
 use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\Service\ProvisioningService;
+use OCP\Accounts\IAccountManager;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\Http\Client\IClientService;
+use OCP\IAvatarManager;
+use OCP\IConfig;
 use OCP\IGroup;
 use OCP\IGroupManager;
-use OCP\ILogger;
 use OCP\IUser;
 use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 class ProvisioningServiceTest extends TestCase {
 	/** @var ProvisioningService | MockObject */
@@ -37,8 +46,17 @@ class ProvisioningServiceTest extends TestCase {
 	/** @var IEventDispatcher | MockObject */
 	private $eventDispatcher;
 
-	/** @var ILogger | MockObject */
+	/** @var LoggerInterface | MockObject */
 	private $logger;
+
+	/** @var IAccountManager | MockObject */
+	private $accountManager;
+
+	/** @var IClientService | MockObject */
+	private $clientService;
+
+	/** @var IAvatarManager | MockObject */
+	private $avatarManager;
 
 	public function setUp(): void {
 		parent::setUp();
@@ -49,7 +67,11 @@ class ProvisioningServiceTest extends TestCase {
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->groupManager = $this->createMock(IGroupManager::class);
 		$this->eventDispatcher = $this->createMock(IEventDispatcher::class);
-		$this->logger = $this->createMock(ILogger::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->accountManager = $this->createMock(IAccountManager::class);
+		$this->clientService = $this->createMock(IClientService::class);
+		$this->avatarManager = $this->createMock(IAvatarManager::class);
+		$this->config = $this->createMock(IConfig::class);
 
 		$this->provisioningService = new ProvisioningService(
 			$this->idService,
@@ -58,7 +80,11 @@ class ProvisioningServiceTest extends TestCase {
 			$this->userManager,
 			$this->groupManager,
 			$this->eventDispatcher,
-			$this->logger
+			$this->logger,
+			$this->accountManager,
+			$this->clientService,
+			$this->avatarManager,
+			$this->config,
 		);
 	}
 
@@ -83,7 +109,23 @@ class ProvisioningServiceTest extends TestCase {
 					[$providerId, ProviderService::SETTING_MAPPING_EMAIL, 'email', 'email'],
 					[$providerId, ProviderService::SETTING_MAPPING_DISPLAYNAME, 'name', 'name'],
 					[$providerId, ProviderService::SETTING_MAPPING_QUOTA, 'quota', 'quota'],
-					[$providerId, ProviderService::SETTING_GROUP_PROVISIONING, '0', '0']
+					[$providerId, ProviderService::SETTING_GROUP_PROVISIONING, '0', '0'],
+					[$providerId, ProviderService::SETTING_MAPPING_ADDRESS, 'address', 'address'],
+					[$providerId, ProviderService::SETTING_MAPPING_STREETADDRESS, 'street_address', 'street_address'],
+					[$providerId, ProviderService::SETTING_MAPPING_POSTALCODE, 'postal_code', 'postal_code'],
+					[$providerId, ProviderService::SETTING_MAPPING_LOCALITY, 'locality', 'locality'],
+					[$providerId, ProviderService::SETTING_MAPPING_REGION, 'region', 'region'],
+					[$providerId, ProviderService::SETTING_MAPPING_COUNTRY, 'country', 'country'],
+					[$providerId, ProviderService::SETTING_MAPPING_WEBSITE, 'website', 'website'],
+					[$providerId, ProviderService::SETTING_MAPPING_AVATAR, 'avatar', 'avatar'],
+					[$providerId, ProviderService::SETTING_MAPPING_TWITTER, 'twitter', 'twitter'],
+					[$providerId, ProviderService::SETTING_MAPPING_FEDIVERSE, 'fediverse', 'fediverse'],
+					[$providerId, ProviderService::SETTING_MAPPING_ORGANISATION, 'organisation', 'organisation'],
+					[$providerId, ProviderService::SETTING_MAPPING_ROLE, 'role', 'role'],
+					[$providerId, ProviderService::SETTING_MAPPING_HEADLINE, 'headline', 'headline'],
+					[$providerId, ProviderService::SETTING_MAPPING_BIOGRAPHY, 'biography', 'biography'],
+					[$providerId, ProviderService::SETTING_MAPPING_PHONE, 'phone_number', 'phone_number'],
+					[$providerId, ProviderService::SETTING_MAPPING_GENDER, 'gender', 'gender'],
 				]
 			));
 
@@ -99,7 +141,7 @@ class ProvisioningServiceTest extends TestCase {
 			->method('setDisplayName')
 			->with($name);
 		$user->expects(self::once())
-			->method('setEMailAddress')
+			->method('setSystemEMailAddress')
 			->with($email);
 		$user->expects(self::once())
 			->method('setQuota')
@@ -132,7 +174,7 @@ class ProvisioningServiceTest extends TestCase {
 			],
 			[
 				'1',
-				'',
+				'group2',
 				(object)[
 					'groups' => [
 						'group2'

@@ -1,34 +1,20 @@
 <!--
-  - @copyright Copyright (c) 2021 Julius Härtl <jus@bitgrid.net>
-  -
-  - @author Julius Härtl <jus@bitgrid.net>
-  -
-  - @license GNU AGPL version 3 or any later version
-  -
-  - This program is free software: you can redistribute it and/or modify
-  - it under the terms of the GNU Affero General Public License as
-  - published by the Free Software Foundation, either version 3 of the
-  - License, or (at your option) any later version.
-  -
-  - This program is distributed in the hope that it will be useful,
-  - but WITHOUT ANY WARRANTY; without even the implied warranty of
-  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-  - GNU Affero General Public License for more details.
-  -
-  - You should have received a copy of the GNU Affero General Public License
-  - along with this program. If not, see <http://www.gnu.org/licenses/>.
-  -
-  -->
+  - SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 
 <template>
 	<form class="provider-edit">
+		<h3><b>{{ t('user_oidc', 'Client configuration') }}</b></h3>
 		<p>
-			<label for="oidc-identifier">{{ t('user_oidc', 'Identifier') }}</label>
+			<label for="oidc-identifier" :class="{ warning: identifierLength >= maxIdentifierLength }">{{ t('user_oidc', 'Identifier (max 128 characters)') }}</label>
 			<input id="oidc-identifier"
 				v-model="localProvider.identifier"
 				type="text"
 				:placeholder="t('user_oidc', 'Display name to identify the provider')"
-				required>
+				:disabled="identifierInitiallySet"
+				required
+				:maxlength="maxIdentifierLength">
 		</p>
 		<p>
 			<label for="oidc-client-id">{{ t('user_oidc', 'Client ID') }}</label>
@@ -46,7 +32,7 @@
 				:required="!update"
 				autocomplete="off">
 		</p>
-		<p class="settings-hint">
+		<p class="settings-hint warning-hint">
 			<AlertOutlineIcon :size="20" class="icon" />
 			{{ t('user_oidc', 'Warning, if the protocol of the URLs in the discovery content is HTTP, the ID token will be delivered through an insecure connection.') }}
 		</p>
@@ -56,6 +42,15 @@
 				v-model="localProvider.discoveryEndpoint"
 				type="text"
 				required>
+		</p>
+		<p>
+			<label for="oidc-end-session-endpoint">{{ t('user_oidc', 'Custom end session endpoint') }}</label>
+			<input id="oidc-end-session-endpoint"
+				v-model="localProvider.endSessionEndpoint"
+				class="italic-placeholder"
+				type="text"
+				maxlength="255"
+				placeholder="(Optional)">
 		</p>
 		<p>
 			<label for="oidc-scope">{{ t('user_oidc', 'Scope') }}</label>
@@ -71,27 +66,13 @@
 				type="text"
 				placeholder="claim1 claim2 claim3">
 		</p>
-		<h3>{{ t('user_oidc', 'Attribute mapping') }}</h3>
+		<h3><b>{{ t('user_oidc', 'Attribute mapping') }}</b></h3>
 		<p>
 			<label for="mapping-uid">{{ t('user_oidc', 'User ID mapping') }}</label>
 			<input id="mapping-uid"
 				v-model="localProvider.settings.mappingUid"
 				type="text"
 				placeholder="sub">
-		</p>
-		<p>
-			<label for="mapping-displayName">{{ t('user_oidc', 'Display name mapping') }}</label>
-			<input id="mapping-displayName"
-				v-model="localProvider.settings.mappingDisplayName"
-				type="text"
-				placeholder="name">
-		</p>
-		<p>
-			<label for="mapping-email">{{ t('user_oidc', 'Email mapping') }}</label>
-			<input id="mapping-email"
-				v-model="localProvider.settings.mappingEmail"
-				type="text"
-				placeholder="email">
 		</p>
 		<p>
 			<label for="mapping-quota">{{ t('user_oidc', 'Quota mapping') }}</label>
@@ -101,13 +82,146 @@
 				placeholder="quota">
 		</p>
 		<p>
-			<label for="mapping-quota">{{ t('user_oidc', 'Groups mapping') }}</label>
-			<input id="mapping-quota"
+			<label for="mapping-groups">{{ t('user_oidc', 'Groups mapping') }}</label>
+			<input id="mapping-groups"
 				v-model="localProvider.settings.mappingGroups"
 				type="text"
 				placeholder="groups"
 				:disabled="!localProvider.settings.groupProvisioning">
 		</p>
+
+		<h3>
+			<NcButton type="secondary" @click="toggleProfileAttributes">
+				<template #icon>
+					<ChevronRightIcon v-if="!showProfileAttributes" :size="20" />
+					<ChevronDownIcon v-else :size="20" />
+				</template>
+				{{ t('user_oidc', 'Extra attributes mapping') }}
+			</NcButton>
+		</h3>
+
+		<div v-show="showProfileAttributes" class="profile-attributes">
+			<p>
+				<label for="mapping-displayName">{{ t('user_oidc', 'Display name mapping') }}</label>
+				<input id="mapping-displayName"
+					v-model="localProvider.settings.mappingDisplayName"
+					type="text"
+					placeholder="name">
+			</p>
+			<p>
+				<label for="mapping-gender">{{ t('user_oidc', 'Gender mapping') }}</label>
+				<input id="mapping-gender"
+					v-model="localProvider.settings.mappingGender"
+					type="text"
+					placeholder="gender">
+			</p>
+			<p>
+				<label for="mapping-email">{{ t('user_oidc', 'Email mapping') }}</label>
+				<input id="mapping-email"
+					v-model="localProvider.settings.mappingEmail"
+					type="text"
+					placeholder="email">
+			</p>
+			<p>
+				<label for="mapping-phone">{{ t('user_oidc', 'Phone mapping') }}</label>
+				<input id="mapping-phone"
+					v-model="localProvider.settings.mappingPhonenumber"
+					type="text"
+					placeholder="phone_number">
+			</p>
+			<p>
+				<label for="mapping-role">{{ t('user_oidc', 'Role/Title mapping') }}</label>
+				<input id="mapping-role"
+					v-model="localProvider.settings.mappingRole"
+					type="text"
+					placeholder="role">
+			</p>
+			<p>
+				<label for="mapping-street_address">{{ t('user_oidc', 'Street mapping') }}</label>
+				<input id="mapping-street_address"
+					v-model="localProvider.settings.mappingStreetaddress"
+					type="text"
+					placeholder="street_address">
+			</p>
+			<p>
+				<label for="mapping-postal_code">{{ t('user_oidc', 'Postal code mapping') }}</label>
+				<input id="mapping-postal_code"
+					v-model="localProvider.settings.mappingPostalcode"
+					type="text"
+					placeholder="postal_code">
+			</p>
+			<p>
+				<label for="mapping-locality">{{ t('user_oidc', 'Locality mapping') }}</label>
+				<input id="mapping-locality"
+					v-model="localProvider.settings.mappingLocality"
+					type="text"
+					placeholder="locality">
+			</p>
+			<p>
+				<label for="mapping-region">{{ t('user_oidc', 'Region mapping') }}</label>
+				<input id="mapping-region"
+					v-model="localProvider.settings.mappingRegion"
+					type="text"
+					placeholder="region">
+			</p>
+			<p>
+				<label for="mapping-country">{{ t('user_oidc', 'Country mapping') }}</label>
+				<input id="mapping-country"
+					v-model="localProvider.settings.mappingCountry"
+					type="text"
+					placeholder="country">
+			</p>
+			<p>
+				<label for="mapping-organisation">{{ t('user_oidc', 'Organisation mapping') }}</label>
+				<input id="mapping-organisation"
+					v-model="localProvider.settings.mappingOrganisation"
+					type="text"
+					placeholder="organisation">
+			</p>
+			<p>
+				<label for="mapping-website">{{ t('user_oidc', 'Website mapping') }}</label>
+				<input id="mapping-website"
+					v-model="localProvider.settings.mappingWebsite"
+					type="text"
+					placeholder="website">
+			</p>
+			<p>
+				<label for="mapping-avatar">{{ t('user_oidc', 'Avatar mapping') }}</label>
+				<input id="mapping-avatar"
+					v-model="localProvider.settings.mappingAvatar"
+					type="text"
+					placeholder="avatar">
+			</p>
+			<p>
+				<label for="mapping-biography">{{ t('user_oidc', 'Biography mapping') }}</label>
+				<input id="mapping-biography"
+					v-model="localProvider.settings.mappingBiography"
+					type="text"
+					placeholder="biography">
+			</p>
+			<p>
+				<label for="mapping-twitter">{{ t('user_oidc', 'Twitter mapping') }}</label>
+				<input id="mapping-twitter"
+					v-model="localProvider.settings.mappingTwitter"
+					type="text"
+					placeholder="twitter">
+			</p>
+			<p>
+				<label for="mapping-fediverse">{{ t('user_oidc', 'Fediverse/Nickname mapping') }}</label>
+				<input id="mapping-fediverse"
+					v-model="localProvider.settings.mappingFediverse"
+					type="text"
+					placeholder="fediverse">
+			</p>
+			<p>
+				<label for="mapping-headline">{{ t('user_oidc', 'Headline mapping') }}</label>
+				<input id="mapping-headline"
+					v-model="localProvider.settings.mappingHeadline"
+					type="text"
+					placeholder="headline">
+			</p>
+		</div>
+		<h3><b>{{ t('user_oidc', 'Authentication and Access Control Settings') }}</b></h3>
 		<NcCheckboxRadioSwitch :checked.sync="localProvider.settings.uniqueUid" wrapper-element="div">
 			{{ t('user_oidc', 'Use unique user id') }}
 		</NcCheckboxRadioSwitch>
@@ -161,6 +275,8 @@
 <script>
 import AlertOutlineIcon from 'vue-material-design-icons/AlertOutline.vue'
 import CheckIcon from 'vue-material-design-icons/Check.vue'
+import ChevronRightIcon from 'vue-material-design-icons/ChevronRight.vue'
+import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 
 import NcCheckboxRadioSwitch from '@nextcloud/vue/dist/Components/NcCheckboxRadioSwitch.js'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
@@ -172,6 +288,8 @@ export default {
 		NcButton,
 		AlertOutlineIcon,
 		CheckIcon,
+		ChevronRightIcon,
+		ChevronDownIcon,
 	},
 	props: {
 		submitText: {
@@ -190,10 +308,23 @@ export default {
 	data() {
 		return {
 			localProvider: null,
+			maxIdentifierLength: 128,
+			showProfileAttributes: false,
 		}
+	},
+	computed: {
+		identifierLength() {
+			return this.localProvider.identifier.length
+		},
 	},
 	created() {
 		this.localProvider = this.provider
+		this.identifierInitiallySet = !!this.localProvider.identifier
+	},
+	methods: {
+		toggleProfileAttributes() {
+			this.showProfileAttributes = !this.showProfileAttributes
+		},
 	},
 }
 </script>
@@ -219,6 +350,11 @@ export default {
 		}
 	}
 
+	.warning-hint {
+		margin-left: 160px;
+		background-color: var(--color-background-dark);
+	}
+
 	p {
 		display: flex;
 		align-items: center;
@@ -230,6 +366,9 @@ export default {
 		input[type=text] {
 			min-width: 200px;
 			flex-grow: 1;
+		}
+		.italic-placeholder::placeholder {
+			font-style: italic;
 		}
 	}
 }

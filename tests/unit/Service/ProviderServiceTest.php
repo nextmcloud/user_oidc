@@ -1,24 +1,7 @@
 <?php
-/*
- * @copyright Copyright (c) 2021 Julius Härtl <jus@bitgrid.net>
- *
- * @author Julius Härtl <jus@bitgrid.net>
- *
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
+/**
+ * SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 declare(strict_types=1);
@@ -74,6 +57,7 @@ class ProviderServiceTest extends TestCase {
 				'identifier' => null,
 				'clientId' => null,
 				'discoveryEndpoint' => null,
+				'endSessionEndpoint' => null,
 				'scope' => null,
 				'settings' => [
 					'mappingDisplayName' => '1',
@@ -81,6 +65,22 @@ class ProviderServiceTest extends TestCase {
 					'mappingQuota' => '1',
 					'mappingUid' => '1',
 					'mappingGroups' => '1',
+					'mappingAddress' => '1',
+					'mappingStreetaddress' => '1',
+					'mappingPostalcode' => '1',
+					'mappingLocality' => '1',
+					'mappingRegion' => '1',
+					'mappingCountry' => '1',
+					'mappingWebsite' => '1',
+					'mappingAvatar' => '1',
+					'mappingTwitter' => '1',
+					'mappingFediverse' => '1',
+					'mappingOrganisation' => '1',
+					'mappingRole' => '1',
+					'mappingHeadline' => '1',
+					'mappingBiography' => '1',
+					'mappingPhonenumber' => '1',
+					'mappingGender' => '1',
 					'uniqueUid' => true,
 					'checkBearer' => true,
 					'bearerProvisioning' => true,
@@ -95,6 +95,7 @@ class ProviderServiceTest extends TestCase {
 				'identifier' => null,
 				'clientId' => null,
 				'discoveryEndpoint' => null,
+				'endSessionEndpoint' => null,
 				'scope' => null,
 				'settings' => [
 					'mappingDisplayName' => '1',
@@ -102,6 +103,22 @@ class ProviderServiceTest extends TestCase {
 					'mappingQuota' => '1',
 					'mappingUid' => '1',
 					'mappingGroups' => '1',
+					'mappingAddress' => '1',
+					'mappingStreetaddress' => '1',
+					'mappingPostalcode' => '1',
+					'mappingLocality' => '1',
+					'mappingRegion' => '1',
+					'mappingCountry' => '1',
+					'mappingWebsite' => '1',
+					'mappingAvatar' => '1',
+					'mappingTwitter' => '1',
+					'mappingFediverse' => '1',
+					'mappingOrganisation' => '1',
+					'mappingRole' => '1',
+					'mappingHeadline' => '1',
+					'mappingBiography' => '1',
+					'mappingPhonenumber' => '1',
+					'mappingGender' => '1',
 					'uniqueUid' => true,
 					'checkBearer' => true,
 					'bearerProvisioning' => true,
@@ -128,6 +145,22 @@ class ProviderServiceTest extends TestCase {
 			'extraClaims' => 'claim1 claim2',
 			'providerBasedId' => false,
 			'groupProvisioning' => true,
+			'mappingAddress' => 'address',
+			'mappingStreetaddress' => 'street_address',
+			'mappingPostalcode' => 'postal_code',
+			'mappingLocality' => 'locality',
+			'mappingRegion' => 'region',
+			'mappingCountry' => 'country',
+			'mappingWebsite' => 'website',
+			'mappingAvatar' => 'avatar',
+			'mappingTwitter' => 'twitter',
+			'mappingFediverse' => 'fediverse',
+			'mappingOrganisation' => 'organisation',
+			'mappingRole' => 'role',
+			'mappingHeadline' => 'headline',
+			'mappingBiography' => 'biography',
+			'mappingPhonenumber' => 'phone',
+			'mappingGender' => 'gender',
 		];
 		$this->config->expects(self::any())
 			->method('getAppValue')
@@ -137,6 +170,22 @@ class ProviderServiceTest extends TestCase {
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_QUOTA, '', '1g'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_UID, '', 'uid'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_GROUPS, '', 'groups'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_ADDRESS, '', 'address'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_STREETADDRESS, '', 'street_address'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_POSTALCODE, '', 'postal_code'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_LOCALITY, '', 'locality'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_REGION, '', 'region'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_COUNTRY, '', 'country'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_WEBSITE, '', 'website'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_AVATAR, '', 'avatar'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_TWITTER, '', 'twitter'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_FEDIVERSE, '', 'fediverse'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_ORGANISATION, '', 'organisation'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_ROLE, '', 'role'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_HEADLINE, '', 'headline'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_BIOGRAPHY, '', 'biography'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_PHONE, '', 'phone'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_GENDER, '', 'gender'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_UNIQUE_UID, '', '1'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_CHECK_BEARER, '', '0'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_BEARER_PROVISIONING, '', '0'],
@@ -169,11 +218,12 @@ class ProviderServiceTest extends TestCase {
 
 	public function testDeleteSettings() {
 		$supportedConfigs = self::invokePrivate($this->providerService, 'getSupportedSettings');
-		$this->config->expects(self::exactly(count($supportedConfigs)))
+		$keysToDelete = [...$supportedConfigs, ProviderService::SETTING_JWKS_CACHE, ProviderService::SETTING_JWKS_CACHE_TIMESTAMP];
+		$this->config->expects(self::exactly(count($keysToDelete)))
 			->method('deleteAppValue')
 			->withConsecutive(...array_map(function ($setting) {
 				return [Application::APP_ID, 'provider-1-' . $setting];
-			}, $supportedConfigs));
+			}, $keysToDelete));
 
 		$this->providerService->deleteSettings(1);
 	}

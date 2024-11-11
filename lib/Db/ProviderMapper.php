@@ -2,34 +2,23 @@
 
 declare(strict_types=1);
 /**
- * @copyright Copyright (c) 2020, Roeland Jago Douma <roeland@famdouma.nl>
- *
- * @author Roeland Jago Douma <roeland@famdouma.nl>
- *
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\UserOIDC\Db;
 
+use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\AppFramework\Db\Entity;
+use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\AppFramework\Db\QBMapper;
+use OCP\DB\Exception;
+
 use OCP\IDBConnection;
 
-use OCP\AppFramework\Db\DoesNotExistException;
-
+/**
+ * @extends QBMapper<Provider>
+ */
 class ProviderMapper extends QBMapper {
 	public function __construct(IDBConnection $db) {
 		parent::__construct($db, 'user_oidc_providers', Provider::class);
@@ -88,17 +77,20 @@ class ProviderMapper extends QBMapper {
 	/**
 	 * Create or update provider settings
 	 *
-	 * @param string identifier
+	 * @param string $identifier
 	 * @param string|null $clientid
 	 * @param string|null $clientsecret
 	 * @param string|null $discoveryuri
-	 * @param string scope
-	 * @throws \OCP\AppFramework\Db\DoesNotExistException
-	 * @throws \OCP\AppFramework\Db\MultipleObjectsReturnedException
+	 * @param string $scope
+	 * @param string|null $endsessionendpointuri
+	 * @return Provider|Entity
+	 * @throws DoesNotExistException
+	 * @throws MultipleObjectsReturnedException
+	 * @throws Exception
 	 */
-	public function createOrUpdateProvider(string $identifier, string $clientid = null,
-									string $clientsecret = null, string $discoveryuri = null,
-									string $scope = 'openid email profile') {
+	public function createOrUpdateProvider(string $identifier, ?string $clientid = null,
+		?string $clientsecret = null, ?string $discoveryuri = null, string $scope = 'openid email profile',
+		?string $endsessionendpointuri = null) {
 		try {
 			$provider = $this->findProviderByIdentifier($identifier);
 		} catch (DoesNotExistException $eNotExist) {
@@ -114,6 +106,7 @@ class ProviderMapper extends QBMapper {
 			$provider->setClientId($clientid);
 			$provider->setClientSecret($clientsecret);
 			$provider->setDiscoveryEndpoint($discoveryuri);
+			$provider->setEndSessionEndpoint($endsessionendpointuri);
 			$provider->setScope($scope);
 			return $this->insert($provider);
 		} else {
@@ -125,6 +118,9 @@ class ProviderMapper extends QBMapper {
 			}
 			if ($discoveryuri !== null) {
 				$provider->setDiscoveryEndpoint($discoveryuri);
+			}
+			if ($endsessionendpointuri !== null) {
+				$provider->setEndSessionEndpoint($endsessionendpointuri ?: null);
 			}
 			$provider->setScope($scope);
 			return $this->update($provider);
