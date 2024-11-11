@@ -23,6 +23,8 @@ use OCA\UserOIDC\Event\TokenObtainedEvent;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\EventProvisioningService;
+use OCA\UserOIDC\Service\ProvisioningDeniedException;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -54,7 +56,68 @@ class LoginController extends BaseOidcController {
 	public const PROVIDERID = 'oidc.providerid';
 	private const REDIRECT_AFTER_LOGIN = 'oidc.redirect';
 	private const ID_TOKEN = 'oidc.id_token';
-	private const CODE_VERIFIER = 'oidc.code_verifier';
+
+	/** @var ISecureRandom */
+	private $random;
+
+	/** @var ISession */
+	private $session;
+
+	/** @var IClientService */
+	private $clientService;
+
+	/** @var IURLGenerator */
+	private $urlGenerator;
+
+	/** @var IUserSession */
+	private $userSession;
+
+	/** @var IUserManager */
+	private $userManager;
+
+	/** @var ITimeFactory */
+	private $timeFactory;
+
+	/** @var ProviderMapper */
+	private $providerMapper;
+
+	/** @var IEventDispatcher */
+	private $eventDispatcher;
+
+	/** @var ILogger */
+	private $logger;
+
+	/** @var ProviderService */
+	private $providerService;
+
+	/** @var DiscoveryService */
+	private $discoveryService;
+
+	/** @var IConfig */
+	private $config;
+
+	/** @var LdapService */
+	private $ldapService;
+
+	/** @var IProvider */
+	private $authTokenProvider;
+
+	/** @var SessionMapper */
+	private $sessionMapper;
+
+	/** @var EventProvisioningService */
+	private $eventProvisioningService;
+
+	/** @var ProvisioningService */
+	private $provisioningService;
+
+	/** @var IL10N */
+	private $l10n;
+	/**
+	 * @var ICrypto
+	 */
+	private $crypto;
+  
 
 	public function __construct(
 		IRequest $request,
@@ -466,15 +529,23 @@ class LoginController extends BaseOidcController {
 		}
 
 		if ($autoProvisionAllowed) {
-			$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
-			if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null) {
-				// if soft auto-provisioning is disabled,
-				// we refuse login for a user that already exists in another backend
-				$message = $this->l10n->t('User conflict');
-				return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
+			// TODO: (proposal) refactor all provisioning strategies into event handlers
+			$user = null;
+			try {
+				$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload);
+			} catch (ProvisioningDeniedException $denied) {
+				// TODO MagentaCLOUD should upstream the exception handling
+				$redirectUrl = $denied->getRedirectUrl();
+				if ($redirectUrl === null) {
+					$message = $this->l10n->t('Failed to provision user');
+					return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => $denied->getMessage()]);
+				} else {
+					// error response is a redirect, e.g. to a booking site
+					// so that you can immediately get the registration page
+					return new RedirectResponse($redirectUrl);
+				}
 			}
-			// use potential user from other backend, create it in our backend if it does not exist
-			$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $userFromOtherBackend);
+			// no default exception handling to pass on unittest assertion failures
 		} else {
 			// when auto provision is disabled, we assume the user has been created by another user backend (or manually)
 			$user = $userFromOtherBackend;
@@ -566,7 +637,8 @@ class LoginController extends BaseOidcController {
 					$endSessionEndpoint .= '&client_id=' . $provider->getClientId();
 					$shouldSendIdToken = $this->providerService->getSetting(
 						$provider->getId(),
-						ProviderService::SETTING_SEND_ID_TOKEN_HINT, '0'
+						ProviderService::SETTING_SEND_ID_TOKEN_HINT,
+						'0'
 					) === '1';
 					$idToken = $this->session->get(self::ID_TOKEN);
 					if ($shouldSendIdToken && $idToken) {
@@ -714,7 +786,10 @@ class LoginController extends BaseOidcController {
 	 * @return JSONResponse
 	 */
 	private function getBackchannelLogoutErrorResponse(
-		string $error, string $description, array $throttleMetadata = [],
+		string $error,
+		string $description,
+		array $throttleMetadata = [],
+		?bool $throttle = null
 	): JSONResponse {
 		$this->logger->debug('Backchannel logout error. ' . $error . ' ; ' . $description);
 		return new JSONResponse(
