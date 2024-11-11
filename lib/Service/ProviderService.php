@@ -1,24 +1,7 @@
 <?php
-/*
- * @copyright Copyright (c) 2021 Julius Härtl <jus@bitgrid.net>
- *
- * @author Julius Härtl <jus@bitgrid.net>
- *
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
+/**
+ * SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 declare(strict_types=1);
@@ -43,30 +26,41 @@ class ProviderService {
 	public const SETTING_MAPPING_EMAIL = 'mappingEmail';
 	public const SETTING_MAPPING_QUOTA = 'mappingQuota';
 	public const SETTING_MAPPING_GROUPS = 'mappingGroups';
+	public const SETTING_MAPPING_ADDRESS = 'mappingAddress';
+	public const SETTING_MAPPING_STREETADDRESS = 'mappingStreetaddress';
+	public const SETTING_MAPPING_POSTALCODE = 'mappingPostalcode';
+	public const SETTING_MAPPING_LOCALITY = 'mappingLocality';
+	public const SETTING_MAPPING_REGION = 'mappingRegion';
+	public const SETTING_MAPPING_COUNTRY = 'mappingCountry';
+	public const SETTING_MAPPING_WEBSITE = 'mappingWebsite';
+	public const SETTING_MAPPING_AVATAR = 'mappingAvatar';
+	public const SETTING_MAPPING_TWITTER = 'mappingTwitter';
+	public const SETTING_MAPPING_FEDIVERSE = 'mappingFediverse';
+	public const SETTING_MAPPING_ORGANISATION = 'mappingOrganisation';
+	public const SETTING_MAPPING_ROLE = 'mappingRole';
+	public const SETTING_MAPPING_HEADLINE = 'mappingHeadline';
+	public const SETTING_MAPPING_BIOGRAPHY = 'mappingBiography';
+	public const SETTING_MAPPING_PHONE = 'mappingPhonenumber';
+	public const SETTING_MAPPING_GENDER = 'mappingGender';
 	public const SETTING_EXTRA_CLAIMS = 'extraClaims';
 	public const SETTING_JWKS_CACHE = 'jwksCache';
 	public const SETTING_JWKS_CACHE_TIMESTAMP = 'jwksCacheTimestamp';
 	public const SETTING_PROVIDER_BASED_ID = 'providerBasedId';
 	public const SETTING_GROUP_PROVISIONING = 'groupProvisioning';
 
-	private const BOOLEAN_SETTINGS = array(
-		self::SETTING_GROUP_PROVISIONING,
-		self::SETTING_PROVIDER_BASED_ID,
-		self::SETTING_BEARER_PROVISIONING,
-		self::SETTING_UNIQUE_UID,
-		self::SETTING_CHECK_BEARER,
-		self::SETTING_SEND_ID_TOKEN_HINT
-	);
+	public const BOOLEAN_SETTINGS_DEFAULT_VALUES = [
+		self::SETTING_GROUP_PROVISIONING => false,
+		self::SETTING_PROVIDER_BASED_ID => false,
+		self::SETTING_BEARER_PROVISIONING => false,
+		self::SETTING_UNIQUE_UID => true,
+		self::SETTING_CHECK_BEARER => false,
+		self::SETTING_SEND_ID_TOKEN_HINT => false,
+	];
 
-
-	/** @var IConfig */
-	private $config;
-	/** @var ProviderMapper */
-	private $providerMapper;
-
-	public function __construct(IConfig $config, ProviderMapper $providerMapper) {
-		$this->config = $config;
-		$this->providerMapper = $providerMapper;
+	public function __construct(
+		private IConfig $config,
+		private ProviderMapper $providerMapper,
+	) {
 	}
 
 	public function getProvidersWithSettings(): array {
@@ -116,6 +110,8 @@ class ProviderService {
 		foreach ($this->getSupportedSettings() as $setting) {
 			$this->config->deleteAppValue(Application::APP_ID, $this->getSettingsKey($providerId, $setting));
 		}
+		$this->config->deleteAppValue(Application::APP_ID, $this->getSettingsKey($providerId, self::SETTING_JWKS_CACHE));
+		$this->config->deleteAppValue(Application::APP_ID, $this->getSettingsKey($providerId, self::SETTING_JWKS_CACHE_TIMESTAMP));
 	}
 
 	public function setSetting(int $providerId, string $key, string $value): void {
@@ -141,6 +137,22 @@ class ProviderService {
 			self::SETTING_MAPPING_QUOTA,
 			self::SETTING_MAPPING_UID,
 			self::SETTING_MAPPING_GROUPS,
+			self::SETTING_MAPPING_ADDRESS,
+			self::SETTING_MAPPING_STREETADDRESS,
+			self::SETTING_MAPPING_POSTALCODE,
+			self::SETTING_MAPPING_LOCALITY,
+			self::SETTING_MAPPING_REGION,
+			self::SETTING_MAPPING_COUNTRY,
+			self::SETTING_MAPPING_WEBSITE,
+			self::SETTING_MAPPING_AVATAR,
+			self::SETTING_MAPPING_TWITTER,
+			self::SETTING_MAPPING_FEDIVERSE,
+			self::SETTING_MAPPING_ORGANISATION,
+			self::SETTING_MAPPING_ROLE,
+			self::SETTING_MAPPING_HEADLINE,
+			self::SETTING_MAPPING_BIOGRAPHY,
+			self::SETTING_MAPPING_PHONE,
+			self::SETTING_MAPPING_GENDER,
 			self::SETTING_UNIQUE_UID,
 			self::SETTING_CHECK_BEARER,
 			self::SETTING_SEND_ID_TOKEN_HINT,
@@ -152,15 +164,17 @@ class ProviderService {
 	}
 
 	private function convertFromJSON(string $key, $value): string {
-		if (in_array($key, self::BOOLEAN_SETTINGS)) {
-			$value = $value ? '1' : '0';
+		if (array_key_exists($key, self::BOOLEAN_SETTINGS_DEFAULT_VALUES)) {
+			return $value ? '1' : '0';
 		}
 		return (string)$value;
 	}
 
 	private function convertToJSON(string $key, $value) {
-		// default is disabled (if not set)
-		if (in_array($key, self::BOOLEAN_SETTINGS)) {
+		if (array_key_exists($key, self::BOOLEAN_SETTINGS_DEFAULT_VALUES)) {
+			if ($value === '') {
+				return self::BOOLEAN_SETTINGS_DEFAULT_VALUES[$key];
+			}
 			return $value === '1';
 		}
 		return (string)$value;

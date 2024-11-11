@@ -1,9 +1,15 @@
+<!--
+  - SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 # user_oidc
+
+[![REUSE status](https://api.reuse.software/badge/github.com/nextcloud/user_oidc)](https://api.reuse.software/info/github.com/nextcloud/user_oidc)
 
 OpenID Connect user backend for Nextcloud
 
 ## General usage
-See [Nextcloud and OpenID-Connect](https://www.schiessle.org/articles/2020/07/26/nextcloud-and-openid-connect/)
+See [Nextcloud and OpenID-Connect](https://www.schiessle.org/articles/2023/07/04/nextcloud-and-openid-connect/)
 for a proper jumpstart.
 
 ### User IDs
@@ -47,6 +53,26 @@ To skip the confirmation, use `--force`.
 ***Warning***: be careful with the deletion of a provider because in some setup, this invalidates access to all
 NextCloud accounts associated with this provider.
 
+#### Avatar support
+
+The avatar attribute on your IdP side may contain a URL pointing to an image file or directly a base64 encoded image.
+The base64 should start with `data:image/png;base64,` or `data:image/jpeg;base64,`.
+The image should be in JPG or PNG format and have the same width and height.
+
+### Disable default claims
+
+Even if you don't map any attribute for quota, display name, email or groups, this application will
+ask for the 'quota', 'name', 'email', 'groups' claims and map them to an attribute with the same name.
+
+To change this behaviour and disable the default claims, you can change this value in `config.php`:
+``` php
+'user_oidc' => [
+    'enable_default_claims' => false,
+],
+```
+
+When default claims are disabled, each claim will be asked for only if there is an attribute explicitely mapped
+in the OpenId client settings (in Nextcloud's admin settings).
 
 ### ID4me option
 ID4me is an application setting switch which is configurable as normal Nextcloud app setting:
@@ -62,6 +88,19 @@ parameter to the login URL.
 
 ```bash
 sudo -u www-data php var/www/nextcloud/occ config:app:set --value=0 user_oidc allow_multiple_user_backends
+```
+
+### PKCE
+
+This app supports PKCE (Proof Key for Code Exchange).
+https://datatracker.ietf.org/doc/html/rfc7636
+Unless PKCE is not supported by the configured OpenID Connect provider,
+it is enabled by default.
+You can also manually disable it in `config.php`:
+``` php
+'user_oidc' => [
+    'use_pkce' => false,
+],
 ```
 
 ### Single logout
@@ -119,6 +158,100 @@ defined in the "Login Attributes" tab.
 In other words, make sure that your OpenID Connect provider's "User ID mapping" setting is set to an attribute
 which provides the same values as the LDAP attribute set in "Internal Username" in your LDAP settings.
 
+#### Soft auto provisioning
+
+If you have existing users managed by another backend (local or LDAP users for example) and you want them to be managed
+by user_oidc but you still want user_oidc to auto-provision users
+(create new users when they are in the Oidc IdP but not found in any other user backend),
+this is possible with **soft** auto provisioning.
+
+There is a `soft_auto_provision` system config flag that is enabled by default and is effective only if `auto_provision`
+is enabled.
+``` php
+'user_oidc' => [
+    'auto_provision' => true, // default: true
+    'soft_auto_provision' => true, // default: true
+],
+```
+
+* When `soft_auto_provision` is enabled
+  * If the user already exists in another backend, we don't create a new one in the user_oidc backend.
+    We update the information (mapped attributes) of the existing user.
+    If the user does not exist in another backend, we create it in the user_oidc backend
+* When `soft_auto_provision` is disabled
+  * We refuse Oidc login of users that already exist in other backends
+
+#### Soft auto provisioning without user creation
+
+You might want soft auto provisioning but prevent user_oidc to create users,
+meaning you want user_oidc to accept connection only for users that already exist in Nextcloud and are managed by other
+user backend BUT you still want user_oidc to set the user information according to the OIDC mapped attributes.
+
+For that, there is a `disable_account_creation` system config flag that is false by default and is effective
+only if `auto_provision` and `soft_auto_provision` are enabled
+is enabled.
+``` php
+'user_oidc' => [
+    'auto_provision' => true, // default: true
+    'soft_auto_provision' => true, // default: true
+    'disable_account_creation' => true, // default: false
+],
+```
+
+### 4 Provisioning scenarios
+
+* Create users if they don't exist
+    * Accept connection of existing users (from other backends) and update their attributes:
+      ``` php
+      'user_oidc' => [
+          'auto_provision' => true, // default: true
+          'soft_auto_provision' => true, // default: true
+      ],
+      ```
+    * Do not accept connection of users existing in other backends:
+	  ``` php
+	  'user_oidc' => [
+		  'auto_provision' => true, // default: true
+		  'soft_auto_provision' => false, // default: true
+	  ],
+	  ```
+* Do not create users if they don't exist
+    * Update attributes of existing users (create by user_oidc or any other backend):
+	  ``` php
+	  'user_oidc' => [
+	  	'auto_provision' => true, // default: true
+	  	'soft_auto_provision' => true, // default: true
+	  	'disable_account_creation' => true, // default: false
+	  ],
+	  ```
+    * Do not update attributes of existing users:
+      ``` php
+      'user_oidc' => [
+          'auto_provision' => false, // default: true
+      ],
+      ```
+
+### Pre-provisioning
+
+If you need the users to exist before they authenticate for the first time
+(because you want other users to be able to share files with them, for example)
+you can pre-provision them with the user_oidc API:
+
+``` bash
+curl -H "ocs-apirequest: true" -u admin:admin -X POST -H "content-type: application/json" \
+  -d '{"providerId":2,"userId":"new_user","displayName":"New User","email":"new@user.org","quota":"5GB"}' \
+  https://my.nextcloud.org/ocs/v2.php/apps/user_oidc/api/v1/user
+```
+
+Only the `providerId` and `userId` parameters are mandatory.
+
+You can also delete users managed by user_oidc with this API endpoint:
+
+``` bash
+curl -H "ocs-apirequest: true" -u admin:admin -X DELETE
+  https://my.nextcloud.org/ocs/v2.php/apps/user_oidc/api/v1/user/USER_ID
+```
+
 ### UserInfo request for Bearer token validation
 
 The OIDC tokens used to make API call to Nextcloud might have been generated by an external entity.
@@ -138,6 +271,19 @@ it is possible to disable the classic "self-encoded" validation:
 'user_oidc' => [
     'userinfo_bearer_validation' => true,
     'selfencoded_bearer_validation' => false,
+],
+```
+
+### Disable audience and azp checks
+
+The `audience` and `azp` token claims will be checked when validating a login or bearer ID token.
+You can disable these check with these config value (in config.php):
+``` php
+'user_oidc' => [
+    'login_validation_audience_check' => false,
+    'login_validation_azp_check' => false,
+    'selfencoded_bearer_validation_audience_check' => false,
+    'selfencoded_bearer_validation_azp_check' => false,
 ],
 ```
 

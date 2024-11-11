@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2021-2024 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: MIT
 name: Integration tests
 
 on:
@@ -18,25 +20,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php-versions: ['8.0']
+        php-versions: ['8.1']
         databases: ['sqlite', 'mysql', 'pgsql']
         server-versions: ['master']
         include:
-            - php-versions: 7.4
-              databases: mysql
-              server-versions: stable21
-            - php-versions: 8.0
-              databases: mysql
-              server-versions: stable22
-            - php-versions: 8.0
-              databases: mysql
-              server-versions: stable23
-            - php-versions: 8.1
-              databases: mysql
-              server-versions: stable24
-            - php-versions: 8.1
-              databases: mysql
-              server-versions: stable25
             - php-versions: 8.1
               databases: mysql
               server-versions: stable26
@@ -44,6 +31,21 @@ jobs:
               databases: mysql
               server-versions: stable27
             - php-versions: 8.1
+              databases: mysql
+              server-versions: stable28
+            - php-versions: 8.1
+              databases: mysql
+              server-versions: stable29
+            - php-versions: 8.1
+              databases: mysql
+              server-versions: stable30
+            - php-versions: 8.1
+              databases: mysql
+              server-versions: master
+            - php-versions: 8.2
+              databases: mysql
+              server-versions: master
+            - php-versions: 8.3
               databases: mysql
               server-versions: master
 
@@ -87,7 +89,9 @@ jobs:
           path: apps/${{ env.APP_NAME }}
 
       - name: Start keycloak
-        run: docker-compose -f "docker-compose.integration.yml" up -d --build
+        run: |
+          docker-compose -f "docker-compose.integration.yml" up -d --build \
+            || docker compose -f "docker-compose.integration.yml" up -d --build
         working-directory: apps/${{ env.APP_NAME }}/tests/
 
       - name: Set up php ${{ matrix.php-versions }}
@@ -111,12 +115,12 @@ jobs:
           fi
           mkdir data
           ./occ maintenance:install --verbose --database=${{ matrix.databases }} --database-name=nextcloud --database-host=127.0.0.1 --database-port=$DB_PORT --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin
-          cat config/config.php
           ./occ user:list
           ./occ app:enable --force ${{ env.APP_NAME }}
           ./occ config:system:set allow_local_remote_servers --value true --type bool
           ./occ config:system:set debug --value true --type bool
-          ./occ user_oidc:provider nextcloudci -c nextcloud -s ff75b7c7-20f9-460b-b27c-16bd5d9b4cd0 -d http:/127.0.0.1:8999/auth/realms/nextcloudci/.well-known/openid-configuration
+          cat config/config.php
+          ./occ user_oidc:provider nextcloudci -c nextcloud -s ff75b7c7-20f9-460b-b27c-16bd5d9b4cd0 -d http://127.0.0.1:8999/auth/realms/nextcloudci/.well-known/openid-configuration
           php -S localhost:8080 &
           curl -v http://127.0.0.1:8999/auth/realms/nextcloudci/.well-known/openid-configuration
 
@@ -130,5 +134,7 @@ jobs:
 
       - name: Stop containers
         if: always()
-        run: docker-compose -f "docker-compose.integration.yml" down
+        run: |
+          docker-compose -f "docker-compose.integration.yml" down \
+            || docker compose -f "docker-compose.integration.yml" down
         working-directory: apps/${{ env.APP_NAME }}/tests/

@@ -1,24 +1,7 @@
 <?php
-/*
- * @copyright Copyright (c) 2021 Julius Härtl <jus@bitgrid.net>
- *
- * @author Julius Härtl <jus@bitgrid.net>
- *
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
+/**
+ * SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 declare(strict_types=1);
@@ -36,17 +19,14 @@ use OCP\EventDispatcher\Event;
  */
 class AttributeMappedEvent extends Event {
 
-	/** @var string */
-	private $attribute;
-	/** @var object */
-	private $claims;
-	/** @var string */
-	private $value;
+	private ?string $value;
 
-	public function __construct(string $attribute, object $claims, ?string $default = null) {
+	public function __construct(
+		private string $attribute,
+		private object $claims,
+		?string $default = null,
+	) {
 		parent::__construct();
-		$this->attribute = $attribute;
-		$this->claims = $claims;
 		$this->value = $default;
 	}
 
@@ -58,7 +38,7 @@ class AttributeMappedEvent extends Event {
 	}
 
 	/**
-	 * @return array the array of claim values associated with the event
+	 * @return object the array of claim values associated with the event
 	 */
 	public function getClaims(): object {
 		return $this->claims;
@@ -69,7 +49,7 @@ class AttributeMappedEvent extends Event {
 	}
 
 	/**
-	 * @return value for the logged in user attribute
+	 * @return string value for the logged in user attribute
 	 */
 	public function getValue(): ?string {
 		return $this->value;

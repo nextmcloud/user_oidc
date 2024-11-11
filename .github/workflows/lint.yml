@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: MIT
 name: Lint
 
 on:
@@ -14,7 +16,7 @@ jobs:
 
     strategy:
       matrix:
-        php-versions: ['7.3', '7.4', '8.0', "8.1"]
+        php-versions: ['8.0', '8.1', '8.2', '8.3']
 
     name: php${{ matrix.php-versions }}
     steps:
@@ -34,7 +36,7 @@ jobs:
 
     strategy:
       matrix:
-        php-versions: ['7.4']
+        php-versions: ['8.0']
 
     name: cs php${{ matrix.php-versions }}
     steps:
