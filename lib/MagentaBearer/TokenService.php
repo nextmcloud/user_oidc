@@ -24,27 +24,27 @@ declare(strict_types=1);
 
 namespace OCA\UserOIDC\MagentaBearer;
 
-use Psr\Log\LoggerInterface;
-use OCP\AppFramework\Utility\ITimeFactory;
-
-use Jose\Component\Core\JWK;
 use Jose\Component\Core\Algorithm;
 use Jose\Component\Core\AlgorithmManager;
 
-use Jose\Component\Encryption\Compression\CompressionMethodManager;
-use Jose\Component\Encryption\Compression\Deflate;
-use Jose\Component\Encryption\JWEDecrypter;
+use Jose\Component\Core\JWK;
+use Jose\Component\Encryption\Algorithm\ContentEncryption\A256CBCHS512;
+use Jose\Component\Encryption\Algorithm\KeyEncryption\ECDHESA256KW;
 
 use Jose\Component\Encryption\Algorithm\KeyEncryption\PBES2HS512A256KW;
 use Jose\Component\Encryption\Algorithm\KeyEncryption\RSAOAEP256;
-use Jose\Component\Encryption\Algorithm\KeyEncryption\ECDHESA256KW;
-use Jose\Component\Encryption\Algorithm\ContentEncryption\A256CBCHS512;
+use Jose\Component\Encryption\Compression\CompressionMethodManager;
 
+use Jose\Component\Encryption\Compression\Deflate;
+use Jose\Component\Encryption\JWEDecrypter;
 use Jose\Component\Signature\Algorithm\HS256;
 use Jose\Component\Signature\Algorithm\HS384;
+
 use Jose\Component\Signature\Algorithm\HS512;
-use Jose\Component\Signature\JWSVerifier;
 use Jose\Component\Signature\JWS;
+use Jose\Component\Signature\JWSVerifier;
+use OCP\AppFramework\Utility\ITimeFactory;
+use Psr\Log\LoggerInterface;
 
 class TokenService {
 
@@ -58,7 +58,7 @@ class TokenService {
 	private $discoveryService;
 
 	public function __construct(LoggerInterface $logger,
-								ITimeFactory $timeFactory) {
+		ITimeFactory $timeFactory) {
 		$this->logger = $logger;
 		$this->timeFactory = $timeFactory;
 		
@@ -142,7 +142,7 @@ class TokenService {
 	 * Transform them in a format compatible with id_token representation.
 	 */
 	public function decode(JWS $decodedToken) : object {
-		$this->logger->debug("Telekom SAM3 access token: " . $decodedToken->getPayload());
+		$this->logger->debug('Telekom SAM3 access token: ' . $decodedToken->getPayload());
 		$samContent = json_decode($decodedToken->getPayload(), false);
 
 		// remap all the custom claims
@@ -153,7 +153,7 @@ class TokenService {
 		}
 		unset($samContent->{'urn:telekom.com:idm:at:attributes'});
 
-		$this->logger->debug("Adapted OpenID-like token; " . json_encode($samContent));
+		$this->logger->debug('Adapted OpenID-like token; ' . json_encode($samContent));
 		return $samContent;
 	}
 

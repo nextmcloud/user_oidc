@@ -26,8 +26,8 @@ declare(strict_types=1);
 use OCA\UserOIDC\BaseTest\BearerTokenTestCase;
 
 
-use OCA\UserOIDC\MagentaBearer\SignatureException;
 use OCA\UserOIDC\MagentaBearer\InvalidTokenException;
+use OCA\UserOIDC\MagentaBearer\SignatureException;
 
 class SamBearerTokenTest extends BearerTokenTestCase {
 

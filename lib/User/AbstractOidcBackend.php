@@ -25,10 +25,10 @@ declare(strict_types=1);
 
 namespace OCA\UserOIDC\User;
 
-use OCA\UserOIDC\Service\DiscoveryService;
-use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Db\UserMapper;
+use OCA\UserOIDC\Service\DiscoveryService;
+use OCA\UserOIDC\Service\ProviderService;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\Authentication\IApacheBackend;
 use OCP\DB\Exception;
@@ -96,16 +96,16 @@ abstract class AbstractOidcBackend extends ABackend implements IPasswordConfirma
 	protected $userManager;
 
 	public function __construct(IConfig $config,
-								UserMapper $userMapper,
-								LoggerInterface $logger,
-								IRequest $request,
-								ISession $session,
-								IURLGenerator $urlGenerator,
-								IEventDispatcher $eventDispatcher,
-								DiscoveryService $discoveryService,
-								ProviderMapper $providerMapper,
-								ProviderService $providerService,
-								IUserManager $userManager) {
+		UserMapper $userMapper,
+		LoggerInterface $logger,
+		IRequest $request,
+		ISession $session,
+		IURLGenerator $urlGenerator,
+		IEventDispatcher $eventDispatcher,
+		DiscoveryService $discoveryService,
+		ProviderMapper $providerMapper,
+		ProviderService $providerService,
+		IUserManager $userManager) {
 		$this->config = $config;
 		$this->userMapper = $userMapper;
 		$this->logger = $logger;

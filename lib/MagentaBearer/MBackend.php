@@ -25,15 +25,16 @@ declare(strict_types=1);
 
 namespace OCA\UserOIDC\MagentaBearer;
 
-use OCA\UserOIDC\User\AbstractOidcBackend;
+use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\Provider;
+use OCA\UserOIDC\Db\ProviderMapper;
+use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\TokenValidatedEvent;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\ProvisioningDeniedException;
 use OCA\UserOIDC\Service\ProvisioningEventService;
-use OCA\UserOIDC\AppInfo\Application;
-use OCA\UserOIDC\Db\ProviderMapper;
-use OCA\UserOIDC\Db\UserMapper;
+use OCA\UserOIDC\User\AbstractOidcBackend;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IConfig;
 use OCP\IRequest;
@@ -55,24 +56,29 @@ class MBackend extends AbstractOidcBackend {
 	 */
 	protected $provisioningService;
 
+	/**
+	 * @var ICrypto
+	 */
+	protected $crypto;
+
 	public function __construct(IConfig $config,
-								UserMapper $userMapper,
-								LoggerInterface $logger,
-								IRequest $request,
-								ISession $session,
-								IURLGenerator $urlGenerator,
-								IEventDispatcher $eventDispatcher,
-								DiscoveryService $discoveryService,
-								ProviderMapper $providerMapper,
-								ProviderService $providerService,
-								IUserManager $userManager,
-								ICrypto $crypto,
-								TokenService $mtokenService,
-								ProvisioningEventService $provisioningService
-								) {
+		UserMapper $userMapper,
+		LoggerInterface $logger,
+		IRequest $request,
+		ISession $session,
+		IURLGenerator $urlGenerator,
+		IEventDispatcher $eventDispatcher,
+		DiscoveryService $discoveryService,
+		ProviderMapper $providerMapper,
+		ProviderService $providerService,
+		IUserManager $userManager,
+		ICrypto $crypto,
+		TokenService $mtokenService,
+		ProvisioningEventService $provisioningService,
+	) {
 		parent::__construct($config, $userMapper, $logger, $request, $session,
-							$urlGenerator, $eventDispatcher, $discoveryService,
-							$providerMapper, $providerService, $userManager);
+			$urlGenerator, $eventDispatcher, $discoveryService,
+			$providerMapper, $providerService, $userManager);
 	
 		$this->mtokenService = $mtokenService;
 		$this->provisioningService = $provisioningService;
@@ -80,7 +86,7 @@ class MBackend extends AbstractOidcBackend {
 	}
 
 	public function getBackendName(): string {
-		return Application::APP_ID . "\\MagentaBearer";
+		return Application::APP_ID . '\\MagentaBearer';
 	}
 
 	/**
@@ -129,11 +135,11 @@ class MBackend extends AbstractOidcBackend {
 					$this->mtokenService->verifyClaims($payload, ['http://auth.magentacloud.de']);
 				} catch (InvalidTokenException $eToken) {
 					// there is
-					$this->logger->debug('Invalid token:' . $eToken->getMessage(). ". Trying another provider.");
+					$this->logger->debug('Invalid token:' . $eToken->getMessage() . '. Trying another provider.');
 					continue;
 				} catch (SignatureException $eSignature) {
 					// only the key seems not to fit, so try the next provider
-					$this->logger->debug($eSignature->getMessage() . ". Trying another provider.");
+					$this->logger->debug($eSignature->getMessage() . '. Trying another provider.');
 					continue;
 				} catch (\Throwable $e) {
 					// there is
