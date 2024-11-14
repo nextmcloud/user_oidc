@@ -46,7 +46,7 @@ class Version010304Date20230902125945 extends SimpleMigrationStep {
 
 	public function __construct(
 		IDBConnection $connection,
-		ICrypto $crypto
+		ICrypto $crypto,
 	) {
 		$this->connection = $connection;
 		$this->crypto = $crypto;
@@ -75,14 +75,14 @@ class Version010304Date20230902125945 extends SimpleMigrationStep {
 		// update secrets in user_oidc_providers and user_oidc_id4me
 		$qbUpdate = $this->connection->getQueryBuilder();
 		$qbUpdate->update($tableName)
-				->set('bearer_secret', $qbUpdate->createParameter('updateSecret'))
-				->where(
-					$qbUpdate->expr()->eq('id', $qbUpdate->createParameter('updateId'))
-				);
+			->set('bearer_secret', $qbUpdate->createParameter('updateSecret'))
+			->where(
+				$qbUpdate->expr()->eq('id', $qbUpdate->createParameter('updateId'))
+			);
 
 		$qbSelect = $this->connection->getQueryBuilder();
 		$qbSelect->select('id', 'bearer_secret')
-				->from($tableName);
+			->from($tableName);
 		$req = $qbSelect->executeQuery();
 		while ($row = $req->fetch()) {
 			$id = $row['id'];
