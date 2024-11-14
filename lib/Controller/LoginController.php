@@ -597,7 +597,7 @@ class LoginController extends BaseOidcController {
 		}
 
 		// cleanup related oidc session
-		// it is not a good idea to remove the session early as some IDM send a backchannel logout also to the initiating system. 
+		// it is not a good idea to remove the session early as some IDM send a backchannel logout also to the initiating system.
 		// This will falsely fail if already deleted. So rely always on backchannel cleanup or make this an option?
 		// $this->sessionMapper->deleteFromNcSessionId($this->session->getId());
 
@@ -716,9 +716,9 @@ class LoginController extends BaseOidcController {
 		} catch (InvalidTokenException $e) {
 			// it is not a problem if the auth token is already deleted, so no error
 			// return $this->getBackchannelLogoutErrorResponse(
-				// 'nc session not found',
-				// 'The authentication session was not found in Nextcloud',
-				// ['nc_auth_session_not_found' => $authTokenId]
+			// 'nc session not found',
+			// 'The authentication session was not found in Nextcloud',
+			// ['nc_auth_session_not_found' => $authTokenId]
 			// );
 		}
 
