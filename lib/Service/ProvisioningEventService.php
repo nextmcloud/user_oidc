@@ -28,14 +28,18 @@ namespace OCA\UserOIDC\Service;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\AttributeMappedEvent;
 use OCA\UserOIDC\Event\UserAccountChangeEvent;
+use OCP\Accounts\IAccountManager;
 use OCP\DB\Exception;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\Http\Client\IClientService;
+use OCP\IAvatarManager;
+use OCP\IConfig;
 use OCP\IGroupManager;
-use OCP\ILogger;
 use OCP\IUser;
 use OCP\IUserManager;
 use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\NotFoundExceptionInterface;
+use Psr\Log\LoggerInterface;
 
 // FIXME there should be an interface for both variations
 class ProvisioningEventService extends ProvisioningService {
@@ -43,7 +47,7 @@ class ProvisioningEventService extends ProvisioningService {
 	/** @var IEventDispatcher */
 	private $eventDispatcher;
 
-	/** @var ILogger */
+	/** @var LoggerInterface */
 	private $logger;
 
 	/** @var IUserManager */
@@ -53,21 +57,30 @@ class ProvisioningEventService extends ProvisioningService {
 	private $providerService;
 
 	public function __construct(
-		LocalIdService   $idService,
-		ProviderService  $providerService,
-		UserMapper       $userMapper,
-		IUserManager     $userManager,
-		IGroupManager    $groupManager,
+		LocalIdService $idService,
+		ProviderService $providerService,
+		UserMapper $userMapper,
+		IUserManager $userManager,
+		IGroupManager $groupManager,
 		IEventDispatcher $eventDispatcher,
-		ILogger          $logger
+		LoggerInterface $logger,
+		IAccountManager $accountManager,
+		IClientService $clientService,
+		IAvatarManager $avatarManager,
+		IConfig $config,
 	) {
 		parent::__construct($idService,
-							$providerService,
-							$userMapper,
-							$userManager,
-							$groupManager,
-							$eventDispatcher,
-							$logger);
+			$providerService,
+			$userMapper,
+			$userManager,
+			$groupManager,
+			$eventDispatcher,
+			$logger,
+			$accountManager,
+			$clientService,
+			$avatarManager,
+			$config,
+		);
 		$this->eventDispatcher = $eventDispatcher;
 		$this->logger = $logger;
 		$this->userManager = $userManager;
