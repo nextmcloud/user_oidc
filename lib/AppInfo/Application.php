@@ -25,15 +25,15 @@ use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\IL10N;
 use OCP\IRequest;
+use OCP\ISession;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
-use Throwable;
-use Psr\Container\ContainerInterface;
+use OCP\Security\ISecureRandom;
 
 // this is needed only for the special, shortened client login flow
-use OCP\Security\ISecureRandom;
-use OCP\ISession;
+use Psr\Container\ContainerInterface;
+use Throwable;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'user_oidc';
@@ -80,7 +80,7 @@ class Application extends App implements IBootstrap {
 
 		try {
 			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
-			$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));			
+			$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 			// this is the custom auto-redirect for MagentaCLOUD client access
 			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 		} catch (Throwable $e) {
@@ -91,10 +91,10 @@ class Application extends App implements IBootstrap {
 	 * This is the automatic redirect exclusively for Nextcloud/Magentacloud clients completely skipping consent layer
 	 */
 	private function registerNmcClientFlow(IRequest $request,
-			IURLGenerator $urlGenerator,
-			ProviderMapper $providerMapper,
-			ISession $session,
-			ISecureRandom $random): void {
+		IURLGenerator $urlGenerator,
+		ProviderMapper $providerMapper,
+		ISession $session,
+		ISecureRandom $random): void {
 		$providers = $this->getCachedProviders($providerMapper);
 
 		// Handle immediate redirect on client first-time login
@@ -109,7 +109,7 @@ class Application extends App implements IBootstrap {
 		if ($isClientLoginFlow) {
 			// only redirect if Telekom provider registered
 			$tproviders = array_values(array_filter($providers, function ($p) {
-				return strtolower($p->getIdentifier()) === "telekom";
+				return strtolower($p->getIdentifier()) === 'telekom';
 			}));
 
 			if (count($tproviders) == 0) {
@@ -117,7 +117,7 @@ class Application extends App implements IBootstrap {
 				return;
 			}
 
-			$stateToken = $random->generate(64, ISecureRandom::CHAR_LOWER.ISecureRandom::CHAR_UPPER.ISecureRandom::CHAR_DIGITS);
+			$stateToken = $random->generate(64, ISecureRandom::CHAR_LOWER . ISecureRandom::CHAR_UPPER . ISecureRandom::CHAR_DIGITS);
 			$session->set('client.flow.state.token', $stateToken);
 
 			// call the service to get the params, but suppress the template
