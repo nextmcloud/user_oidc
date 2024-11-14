@@ -10,10 +10,10 @@
 
 declare(strict_types=1);
 
-use OCA\UserOIDC\AppInfo\Application;
-use OCA\UserOIDC\Service\ProvisioningService;
-use OCA\UserOIDC\Service\ProvisioningEventService;
 use OC\AppFramework\Bootstrap\Coordinator;
+use OCA\UserOIDC\AppInfo\Application;
+use OCA\UserOIDC\Service\ProvisioningEventService;
+use OCA\UserOIDC\Service\ProvisioningService;
 
 use PHPUnit\Framework\TestCase;
 

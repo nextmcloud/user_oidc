@@ -469,10 +469,10 @@ class LoginController extends BaseOidcController {
 		if ($autoProvisionAllowed) {
 			// $softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
 			// if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null) {
-				// if soft auto-provisioning is disabled,
-				// we refuse login for a user that already exists in another backend
-			 	// $message = $this->l10n->t('User conflict');
-				// return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
+			// if soft auto-provisioning is disabled,
+			// we refuse login for a user that already exists in another backend
+			// $message = $this->l10n->t('User conflict');
+			// return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
 			// }
 
 			// TODO: (proposal) refactor all provisioning strategies into event handlers

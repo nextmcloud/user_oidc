@@ -35,16 +35,16 @@ class ProvisioningDeniedException extends \Exception {
 	/**
 	 * Exception constructor including an option redirect url.
 	 *
-	 * @param string $message  The error message. It will be not revealed to the
-	 *                         the user (unless the hint is empty) and thus
-	 *                         should be not translated.
-	 * @param string $hint     A useful message that is presented to the end
-	 *                         user. It should be translated, but must not
-	 *                         contain sensitive data.
-	 * @param int $code        Set default to 403 (Forbidden)
+	 * @param string $message The error message. It will be not revealed to the
+	 *                        the user (unless the hint is empty) and thus
+	 *                        should be not translated.
+	 * @param string $hint A useful message that is presented to the end
+	 *                     user. It should be translated, but must not
+	 *                     contain sensitive data.
+	 * @param int $code Set default to 403 (Forbidden)
 	 * @param \Exception|null $previous
 	 */
-	public function __construct(string $message, ?string $redirectUrl = null, int $code = 403, \Exception $previous = null) {
+	public function __construct(string $message, ?string $redirectUrl = null, int $code = 403, ?\Exception $previous = null) {
 		parent::__construct($message, $code, $previous);
 		$this->redirectUrl = $redirectUrl;
 	}
