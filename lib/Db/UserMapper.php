@@ -13,6 +13,7 @@ use OCP\AppFramework\Db\IMapperException;
 use OCP\AppFramework\Db\QBMapper;
 use OCP\Cache\CappedMemoryCache;
 use OCP\IDBConnection;
+use Psr\Log\LoggerInterface;
 
 /**
  * @extends QBMapper<User>
@@ -20,13 +21,16 @@ use OCP\IDBConnection;
 class UserMapper extends QBMapper {
 
 	private CappedMemoryCache $userCache;
+	private LoggerInterface $logger;
 
 	public function __construct(
 		IDBConnection $db,
+		LoggerInterface $logger,
 		private LocalIdService $idService,
 	) {
 		parent::__construct($db, 'user_oidc', User::class);
 		$this->userCache = new CappedMemoryCache();
+		$this->logger = $logger;
 	}
 
 	/**
@@ -57,6 +61,29 @@ class UserMapper extends QBMapper {
 	public function find(string $search, $limit = null, $offset = null): array {
 		$qb = $this->db->getQueryBuilder();
 
+		$backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+		$stack = [];
+
+		foreach ($backtrace as $index => $trace) {
+			$class = $trace['class'] ?? '';
+			$type = $trace['type'] ?? '';
+			$function = $trace['function'] ?? '';
+			$file = $trace['file'] ?? 'unknown file';
+			$line = $trace['line'] ?? 'unknown line';
+
+			$stack[] = sprintf(
+				"#%d %s%s%s() called at [%s:%s]",
+				$index,
+				$class,
+				$type,
+				$function,
+				$file,
+				$line
+			);
+		}
+
+		$this->logger->debug("Find user by string: " . $search . " -- Call Stack:\n" . implode("\n", $stack));
+
 		$qb->select('user_id', 'display_name')
 			->from($this->getTableName(), 'u')
 			->leftJoin('u', 'preferences', 'p', $qb->expr()->andX(
@@ -76,6 +103,29 @@ class UserMapper extends QBMapper {
 
 	public function findDisplayNames(string $search, $limit = null, $offset = null): array {
 		$qb = $this->db->getQueryBuilder();
+
+		$backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+		$stack = [];
+
+		foreach ($backtrace as $index => $trace) {
+			$class = $trace['class'] ?? '';
+			$type = $trace['type'] ?? '';
+			$function = $trace['function'] ?? '';
+			$file = $trace['file'] ?? 'unknown file';
+			$line = $trace['line'] ?? 'unknown line';
+
+			$stack[] = sprintf(
+				"#%d %s%s%s() called at [%s:%s]",
+				$index,
+				$class,
+				$type,
+				$function,
+				$file,
+				$line
+			);
+		}
+
+		$this->logger->debug("Find user display names by string: " . $search . " -- Call Stack:\n" . implode("\n", $stack));
 
 		$qb->select('user_id', 'display_name')
 			->from($this->getTableName(), 'u')
