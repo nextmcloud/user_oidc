@@ -10,6 +10,8 @@ namespace OCA\UserOIDC\Service;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\AttributeMappedEvent;
 use OCP\Accounts\IAccountManager;
+use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\DB\Exception;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Http\Client\IClientService;
@@ -40,6 +42,15 @@ class ProvisioningService {
 	) {
 	}
 
+	public function hasOidcUserProvisitioned(string $userId): bool {
+		try {
+			$this->userMapper->getUser($userId);
+			return true;
+		} catch (DoesNotExistException|MultipleObjectsReturnedException) {
+		}
+		return false;
+	}
+	
 	/**
 	 * @param string $tokenUserId
 	 * @param int $providerId
