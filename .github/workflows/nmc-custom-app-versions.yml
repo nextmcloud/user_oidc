@@ -1,0 +1,72 @@
+###
+# SPDX-License-Identifier: AGPL-3.0
+#
+# Author: Bernd rederlechner <bernd.rederlechner@t-systems.com>
+#
+# Assemble a customisation for trunk (no backports) and stable
+# (backport xor trunk)
+#
+# It creates review (user-specific) customisations branches
+# - customisation-<user>-<trunk>
+# - customisation-<user>-<stable>
+
+name: MCLOUD custom app versions
+
+###
+# The customisation-* branches are always reassembled if a customisation branch
+# is updated or included into a custom PR
+on:
+  workflow_dispatch:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+    branches:
+      - master
+      - main
+      - trunk
+      - nmcstable/**
+      # - stable/**
+
+jobs:
+
+  assemble:
+    strategy:
+      fail-fast: false
+      matrix:
+        custombase: [ "main" ]
+    uses: nextmcloud/.github/.github/workflows/nmc-custom-assembly.yml@master
+    with:
+      trunk: "main"
+      stable: ${{ matrix.custombase }}
+      result: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
+    secrets: inherit
+
+  composerdep:
+    strategy:
+      fail-fast: false
+      matrix:
+        custombase: [ "main" ]
+    uses: ./.github/workflows/nmc-custom-oidc-composer.yml
+    needs: assemble
+    with:
+      assembly: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
+    secrets: inherit
+
+  phpunit:
+    strategy:
+      fail-fast: false
+      matrix:
+        phpversion: ['8.0', '8.1']
+        database: ['mysql']
+        custombase: [ "main" ]
+    uses: nextmcloud/.github/.github/workflows/nmc-custom-app-phpunit.yml@master
+    needs: composerdep
+    with:
+      assembly: ${{ format('customisation-{0}-{1}', github.actor, matrix.custombase) }}
+      appname: 'user_oidc'
+      server-branch: ${{ matrix.custombase }}
+      phpversion: ${{ matrix.phpversion }}
+      database: ${{ matrix.database }}
+    secrets: inherit
