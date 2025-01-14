@@ -13,9 +13,12 @@ use OC_App;
 use OC_User;
 use OCA\Files\Event\LoadAdditionalScriptsEvent;
 use OCA\UserOIDC\Db\ProviderMapper;
+use OCA\UserOIDC\Event\ExchangedTokenRequestedEvent;
+use OCA\UserOIDC\Listener\ExchangedTokenRequestedListener;
 use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\SettingsService;
+use OCA\UserOIDC\Service\TokenService;
 use OCA\UserOIDC\User\Backend;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -52,10 +55,12 @@ class Application extends App implements IBootstrap {
 		OC_User::useBackend($this->backend);
 
 		$context->registerEventListener(LoadAdditionalScriptsEvent::class, TimezoneHandlingListener::class);
+		$context->registerEventListener(ExchangedTokenRequestedEvent::class, ExchangedTokenRequestedListener::class);
 	}
 
 	public function boot(IBootContext $context): void {
 		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
+		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 		/** @var IUserSession $userSession */
 		$userSession = $this->getContainer()->get(IUserSession::class);
 		if ($userSession->isLoggedIn()) {
@@ -69,9 +74,14 @@ class Application extends App implements IBootstrap {
 		}
 	}
 
+	private function checkLoginToken(TokenService $tokenService): void {
+		$tokenService->checkLoginToken();
+	}
+
 	private function registerRedirect(IRequest $request, IURLGenerator $urlGenerator, SettingsService $settings, ProviderMapper $providerMapper): void {
 		$providers = $this->getCachedProviders($providerMapper);
 		$redirectUrl = $request->getParam('redirect_url');
+		$absoluteRedirectUrl = !empty($redirectUrl) ? $urlGenerator->getAbsoluteURL($redirectUrl) : $redirectUrl;
 
 		// Handle immediate redirect to the oidc provider if just one is configured and no other backends are allowed
 		$isDefaultLogin = false;
@@ -83,7 +93,7 @@ class Application extends App implements IBootstrap {
 		if ($isDefaultLogin && !$settings->getAllowMultipleUserBackEnds() && count($providers) === 1) {
 			$targetUrl = $urlGenerator->linkToRoute(self::APP_ID . '.login.login', [
 				'providerId' => $providers[0]->getId(),
-				'redirectUrl' => $redirectUrl
+				'redirectUrl' => $absoluteRedirectUrl
 			]);
 			header('Location: ' . $targetUrl);
 			exit();
@@ -92,12 +102,13 @@ class Application extends App implements IBootstrap {
 
 	private function registerLogin(IRequest $request, IL10N $l10n, IURLGenerator $urlGenerator, ProviderMapper $providerMapper): void {
 		$redirectUrl = $request->getParam('redirect_url');
+		$absoluteRedirectUrl = !empty($redirectUrl) ? $urlGenerator->getAbsoluteURL($redirectUrl) : $redirectUrl;
 		$providers = $this->getCachedProviders($providerMapper);
 		foreach ($providers as $provider) {
 			// FIXME: Move to IAlternativeLogin but requires boot due to db connection
 			OC_App::registerLogIn([
 				'name' => $l10n->t('Login with %1s', [$provider->getIdentifier()]),
-				'href' => $urlGenerator->linkToRoute(self::APP_ID . '.login.login', ['providerId' => $provider->getId(), 'redirectUrl' => $redirectUrl]),
+				'href' => $urlGenerator->linkToRoute(self::APP_ID . '.login.login', ['providerId' => $provider->getId(), 'redirectUrl' => $absoluteRedirectUrl]),
 			]);
 		}
 

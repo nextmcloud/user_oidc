@@ -73,6 +73,9 @@ class SettingsController extends Controller {
 		return $result;
 	}
 
+	/**
+	 * @PasswordConfirmationRequired
+	 */
 	public function createProvider(string $identifier, string $clientId, string $clientSecret, string $discoveryEndpoint, string $bearerSecret,
 		array $settings = [], string $scope = 'openid email profile', ?string $endSessionEndpoint = null): JSONResponse {
 		if ($this->providerService->getProviderByIdentifier($identifier) !== null) {
@@ -105,6 +108,9 @@ class SettingsController extends Controller {
 		return new JSONResponse(array_merge($provider->jsonSerialize(), ['settings' => $providerSettings]));
 	}
 
+	/**
+	 * @PasswordConfirmationRequired
+	 */
 	public function updateProvider(int $providerId, string $identifier, string $clientId, string $discoveryEndpoint, ?string $clientSecret = null, ?string $bearerSecret = null,
 		array $settings = [], string $scope = 'openid email profile', ?string $endSessionEndpoint = null): JSONResponse {
 		$provider = $this->providerMapper->getProvider($providerId);
@@ -141,6 +147,9 @@ class SettingsController extends Controller {
 		return new JSONResponse(array_merge($provider->jsonSerialize(), ['settings' => $providerSettings]));
 	}
 
+	/**
+	 * @PasswordConfirmationRequired
+	 */
 	public function deleteProvider(int $providerId): JSONResponse {
 		try {
 			$provider = $this->providerMapper->getProvider($providerId);
@@ -162,6 +171,9 @@ class SettingsController extends Controller {
 		return $this->id4meService->getID4ME();
 	}
 
+	/**
+	 * @PasswordConfirmationRequired
+	 */
 	public function setID4ME(bool $enabled): JSONResponse {
 		$this->id4meService->setID4ME($enabled);
 		return new JSONResponse(['enabled' => $this->getID4ME()]);
