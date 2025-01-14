@@ -534,12 +534,12 @@ class LoginController extends BaseOidcController {
 		}
 
 		// store all token information for potential token exchange requests
-		$tokenData = array_merge(
-			$data,
-			['provider_id' => $providerId],
-		);
-		$this->tokenService->storeToken($tokenData);
-		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
+		// $tokenData = array_merge(
+			// $data,
+			// ['provider_id' => $providerId],
+		// );
+		// $this->tokenService->storeToken($tokenData);
+		// $this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
