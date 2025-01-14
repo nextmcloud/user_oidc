@@ -27,6 +27,7 @@ use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\LocalIdService;
 use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\Service\ProvisioningEventService;
+use OCP\Accounts\IAccountManager;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -36,6 +37,7 @@ use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
+use OCP\IAvatarManager;
 use OCP\ICacheFactory;
 use OCP\IConfig;
 use OCP\IDBConnection;
@@ -48,6 +50,7 @@ use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserManager;
 use OCP\IUserSession;
+
 
 use OCP\Security\ISecureRandom;
 
@@ -218,11 +221,24 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 		$this->response = $this->getMockForAbstractClass(IResponse::class);
 		//$this->usersession = $this->getMockForAbstractClass(IUserSession::class);
 		$this->usersession = $this->getMockBuilder(IUserSession::class)
-			->disableOriginalConstructor()
-			->onlyMethods(['setUser', 'login', 'logout', 'getUser', 'isLoggedIn',
-				'getImpersonatingUserID', 'setImpersonatingUserID'])
-			->addMethods(['completeLogin', 'createSessionToken', 'createRememberMeToken'])
-			->getMock();
+		->disableOriginalConstructor()
+		->onlyMethods([
+			'setUser', 
+			'login', 
+			'logout', 
+			'getUser', 
+			'isLoggedIn',
+			'getImpersonatingUserID', 
+			'setImpersonatingUserID',
+			'setVolatileActiveUser' // Diese Methode hinzufügen, falls sie gebraucht wird.
+		])
+		->addMethods([
+			'completeLogin', 
+			'createSessionToken', 
+			'createRememberMeToken'
+		])
+		->getMock();
+
 		$this->usermanager = $this->getUserManagerSetup();
 		$this->groupmanager = $this->getMockForAbstractClass(IGroupManager::class);
 		$this->dispatcher = $this->app->getContainer()->get(IEventDispatcher::class);
@@ -234,7 +250,11 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 			$this->usermanager,
 			$this->groupmanager,
 			$this->dispatcher,
-			$this->app->getContainer()->get(ILogger::class));
+			$this->app->getContainer()->get(LoggerInterface::class),
+			$this->app->getContainer()->get(IAccountManager::class),
+			$this->app->getContainer()->get(IClientService::class),
+			$this->app->getContainer()->get(IAvatarManager::class),
+			$this->app->getContainer()->get(IConfig::class));
 		// here is where the token magic comes in
 		$this->token = [ 'id_token' =>
 							$this->createSignToken($this->getRealOidClaims(),
@@ -274,7 +294,7 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 			$this->sessionMapper,
 			$this->provisioningService,
 			$this->app->getContainer()->get(IL10N::class),
-			$this->app->getContainer()->get(ILogger::class),
+			$this->app->getContainer()->get(LoggerInterface::class),
 			$this->crypto);
 
 		$this->attributeListener = null;
@@ -413,6 +433,7 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 				$event->setValue('mona.lisa@louvre.fr');
 			}
 		};
+		
 		$this->accountListener = function (Event $event) :void {
 			$this->assertInstanceOf(UserAccountChangeEvent::class, $event);
 			$this->assertEquals('jgyros', $event->getUid());
