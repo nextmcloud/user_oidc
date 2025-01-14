@@ -24,6 +24,7 @@ use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\Service\ProvisioningService;
+use OCA\UserOIDC\Service\TokenService;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
@@ -77,6 +78,7 @@ class LoginController extends BaseOidcController {
 		private IL10N $l10n,
 		private LoggerInterface $logger,
 		private ICrypto $crypto,
+		private TokenService $tokenService,
 	) {
 		parent::__construct($request, $config);
 	}
@@ -108,13 +110,10 @@ class LoginController extends BaseOidcController {
 	 * @return RedirectResponse
 	 */
 	private function getRedirectResponse(?string $redirectUrl = null): RedirectResponse {
-		// this could also be done with
-		// preg_replace('/^https?:\/\//', '', $redirectUrl)
-		// or even: if (preg_match('/https?:\/\//', $redirectUrl) === 1) return new RedirectResponse('/');
 		return new RedirectResponse(
 			$redirectUrl === null
-				? null
-				: join('?', array_filter(parse_url($redirectUrl), fn ($k) => in_array($k, ['path', 'query']), ARRAY_FILTER_USE_KEY))
+				? $this->urlGenerator->getBaseUrl()
+				: preg_replace('/^https?:\/\/[^\/]+/', '', $redirectUrl)
 		);
 	}
 
@@ -468,6 +467,18 @@ class LoginController extends BaseOidcController {
 			return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'failed to provision user']);
 		}
 
+		// prevent login of users that are not in a whitelisted group (if activated)
+		$restrictLoginToGroups = $this->providerService->getSetting($providerId, ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS, '0');
+		if ($restrictLoginToGroups === '1') {
+			$syncGroups = $this->provisioningService->getSyncGroupsOfToken($providerId, $idTokenPayload);
+
+			if ($syncGroups === null || count($syncGroups) === 0) {
+				$this->logger->debug('Prevented user from login as user is not part of a whitelisted group');
+				$message = $this->l10n->t('You do not have permission to log in to this instance. If you think this is an error, please contact an administrator.');
+				return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['reason' => 'user not in any whitelisted group']);
+			}
+		}
+
 		$autoProvisionAllowed = (!isset($oidcSystemConfig['auto_provision']) || $oidcSystemConfig['auto_provision']);
 
 		// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
@@ -513,6 +524,14 @@ class LoginController extends BaseOidcController {
 		// remove code login session values
 		$this->session->remove(self::STATE);
 		$this->session->remove(self::NONCE);
+
+		// store all token information for potential token exchange requests
+		$tokenData = array_merge(
+			$data,
+			['provider_id' => $providerId],
+		);
+		$this->tokenService->storeToken($tokenData);
+		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
