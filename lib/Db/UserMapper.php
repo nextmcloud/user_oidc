@@ -14,6 +14,7 @@ use OCP\AppFramework\Db\QBMapper;
 use OCP\Cache\CappedMemoryCache;
 use OCP\IConfig;
 use OCP\IDBConnection;
+use Psr\Log\LoggerInterface;
 
 /**
  * @extends QBMapper<User>
@@ -21,14 +22,17 @@ use OCP\IDBConnection;
 class UserMapper extends QBMapper {
 
 	private CappedMemoryCache $userCache;
+	private LoggerInterface $logger;
 
 	public function __construct(
 		IDBConnection $db,
+		LoggerInterface $logger,
 		private LocalIdService $idService,
 		private IConfig $config,
 	) {
 		parent::__construct($db, 'user_oidc', User::class);
 		$this->userCache = new CappedMemoryCache();
+		$this->logger = $logger;
 	}
 
 	/**

@@ -23,6 +23,7 @@ use OCA\UserOIDC\Event\TokenObtainedEvent;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\ProvisioningDeniedException;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\TokenService;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
@@ -480,26 +481,51 @@ class LoginController extends BaseOidcController {
 		}
 
 		$autoProvisionAllowed = (!isset($oidcSystemConfig['auto_provision']) || $oidcSystemConfig['auto_provision']);
+		$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
 
-		// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
-		// so new users will be directly available even if they were not synced before this login attempt
-		$this->userManager->search($userId);
-		$this->ldapService->syncUser($userId);
+		$shouldDoUserLookup = !$autoProvisionAllowed || ($softAutoProvisionAllowed && !$this->provisioningService->hasOidcUserProvisitioned($userId));
+		if ($shouldDoUserLookup && $this->ldapService->isLDAPEnabled()) {
+			// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
+			// so new users will be directly available even if they were not synced before this login attempt
+			$this->userManager->search($userId, 1, 0);
+			$this->ldapService->syncUser($userId);
+		}
+
 		$userFromOtherBackend = $this->userManager->get($userId);
 		if ($userFromOtherBackend !== null && $this->ldapService->isLdapDeletedUser($userFromOtherBackend)) {
 			$userFromOtherBackend = null;
 		}
 
 		if ($autoProvisionAllowed) {
-			$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
-			if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null) {
-				// if soft auto-provisioning is disabled,
-				// we refuse login for a user that already exists in another backend
-				$message = $this->l10n->t('User conflict');
-				return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
+			// $softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
+			// if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null) {
+			// if soft auto-provisioning is disabled,
+			// we refuse login for a user that already exists in another backend
+			// $message = $this->l10n->t('User conflict');
+			// return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
+			// }
+
+			// TODO: (proposal) refactor all provisioning strategies into event handlers
+			$user = null;
+
+			try {
+				$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $userFromOtherBackend);
+			} catch (ProvisioningDeniedException $denied) {
+				// TODO MagentaCLOUD should upstream the exception handling
+				$redirectUrl = $denied->getRedirectUrl();
+				if ($redirectUrl === null) {
+					$message = $this->l10n->t('Failed to provision user');
+					return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => $denied->getMessage()]);
+				} else {
+					// error response is a redirect, e.g. to a booking site
+					// so that you can immediately get the registration page
+					return new RedirectResponse($redirectUrl);
+				}
 			}
+
 			// use potential user from other backend, create it in our backend if it does not exist
-			$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $userFromOtherBackend);
+			// $user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $userFromOtherBackend);
+			// no default exception handling to pass on unittest assertion failures
 		} else {
 			// when auto provision is disabled, we assume the user has been created by another user backend (or manually)
 			$user = $userFromOtherBackend;
@@ -526,12 +552,12 @@ class LoginController extends BaseOidcController {
 		$this->session->remove(self::NONCE);
 
 		// store all token information for potential token exchange requests
-		$tokenData = array_merge(
-			$data,
-			['provider_id' => $providerId],
-		);
-		$this->tokenService->storeToken($tokenData);
-		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
+		// $tokenData = array_merge(
+			// $data,
+			// ['provider_id' => $providerId],
+		// );
+		// $this->tokenService->storeToken($tokenData);
+		// $this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
@@ -758,7 +784,7 @@ class LoginController extends BaseOidcController {
 	 * @return JSONResponse
 	 */
 	private function getBackchannelLogoutErrorResponse(
-		string $error, string $description, array $throttleMetadata = [],
+		string $error, string $description, array $throttleMetadata = [], ?bool $throttle = null,
 	): JSONResponse {
 		$this->logger->debug('Backchannel logout error. ' . $error . ' ; ' . $description);
 		return new JSONResponse(
