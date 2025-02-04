@@ -25,7 +25,9 @@ use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\TokenService;
+use OCA\UserOIDC\User\Backend;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
+use OCA\UserOIDC\Vendor\Firebase\JWT\Key;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\AppFramework\Http;
@@ -47,6 +49,8 @@ use OCP\IUserSession;
 use OCP\Security\ICrypto;
 use OCP\Security\ISecureRandom;
 use OCP\Session\Exceptions\SessionNotAvailableException;
+use OCP\User\Events\BeforeUserLoggedInEvent;
+use OCP\User\Events\UserLoggedInEvent;
 use Psr\Log\LoggerInterface;
 
 class LoginController extends BaseOidcController {
@@ -480,18 +484,22 @@ class LoginController extends BaseOidcController {
 		}
 
 		$autoProvisionAllowed = (!isset($oidcSystemConfig['auto_provision']) || $oidcSystemConfig['auto_provision']);
+		$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
 
-		// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
-		// so new users will be directly available even if they were not synced before this login attempt
-		$this->userManager->search($userId);
-		$this->ldapService->syncUser($userId);
+		$shouldDoUserLookup = !$autoProvisionAllowed || ($softAutoProvisionAllowed && !$this->provisioningService->hasOidcUserProvisitioned($userId));
+		if ($shouldDoUserLookup && $this->ldapService->isLDAPEnabled()) {
+			// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
+			// so new users will be directly available even if they were not synced before this login attempt
+			$this->userManager->search($userId, 1, 0);
+			$this->ldapService->syncUser($userId);
+		}
+
 		$userFromOtherBackend = $this->userManager->get($userId);
 		if ($userFromOtherBackend !== null && $this->ldapService->isLdapDeletedUser($userFromOtherBackend)) {
 			$userFromOtherBackend = null;
 		}
 
 		if ($autoProvisionAllowed) {
-			$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
 			if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null) {
 				// if soft auto-provisioning is disabled,
 				// we refuse login for a user that already exists in another backend
@@ -519,19 +527,26 @@ class LoginController extends BaseOidcController {
 			$this->userSession->completeLogin($user, ['loginName' => $user->getUID(), 'password' => '']);
 			$this->userSession->createSessionToken($this->request, $user->getUID(), $user->getUID());
 			$this->userSession->createRememberMeToken($user);
+			// TODO server should/could be refactored so we don't need to manually create the user session and dispatch the login-related events
+			$this->eventDispatcher->dispatchTyped(new BeforeUserLoggedInEvent($user->getUID(), null, \OC::$server->get(Backend::class)));
+			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $user->getUID(), null, false));
 		}
 
 		// remove code login session values
 		$this->session->remove(self::STATE);
 		$this->session->remove(self::NONCE);
 
-		// store all token information for potential token exchange requests
-		$tokenData = array_merge(
-			$data,
-			['provider_id' => $providerId],
-		);
-		$this->tokenService->storeToken($tokenData);
-		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
+		// $tokenExchangeEnabled = (isset($oidcSystemConfig['token_exchange']) && $oidcSystemConfig['token_exchange'] === true);
+		// if ($tokenExchangeEnabled) {
+			// store all token information for potential token exchange requests
+			// $tokenData = array_merge(
+				// $data,
+				// ['provider_id' => $providerId],
+			// );
+			// $this->tokenService->storeToken($tokenData);
+		// }
+
+		// $this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
@@ -569,6 +584,7 @@ class LoginController extends BaseOidcController {
 	/**
 	 * Endpoint called by NC to logout in the IdP before killing the current session
 	 *
+	 * @PublicPage
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
 	 * @UseSession
@@ -584,7 +600,23 @@ class LoginController extends BaseOidcController {
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
 		$targetUrl = $this->urlGenerator->getAbsoluteURL('/');
 		if (!isset($oidcSystemConfig['single_logout']) || $oidcSystemConfig['single_logout']) {
-			$providerId = $this->session->get(self::PROVIDERID);
+			$isFromGS = ($this->config->getSystemValueBool('gs.enabled', false)
+				&& $this->config->getSystemValueString('gss.mode', '') === 'master');
+			if ($isFromGS) {
+				// Request is from master GlobalScale: we get the provider ID from the JWT token provided by the slave
+				$jwt = $this->request->getParam('jwt', '');
+
+				try {
+					$key = $this->config->getSystemValueString('gss.jwt.key', '');
+					$decoded = (array)JWT::decode($jwt, new Key($key, 'HS256'));
+
+					$providerId = $decoded['oidcProviderId'] ?? null;
+				} catch (\Exception $e) {
+					$this->logger->debug('Failed to get the logout provider ID in the request from GSS', ['exception' => $e]);
+				}
+			} else {
+				$providerId = $this->session->get(self::PROVIDERID);
+			}
 			if ($providerId) {
 				try {
 					$provider = $this->providerMapper->getProvider((int)$providerId);
