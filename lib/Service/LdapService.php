@@ -35,7 +35,7 @@ class LdapService {
 		if ($this->isLDAPEnabled()) {
 			return false;
 		}
-		
+
 		$className = $user->getBackendClassName();
 		if ($className !== 'LDAP') {
 			return false;
