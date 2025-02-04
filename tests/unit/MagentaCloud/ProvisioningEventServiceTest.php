@@ -43,7 +43,6 @@ use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IL10N; // deprecated!
-use OCP\ILogger;
 use OCP\IRequest;
 use OCP\ISession;
 use OCP\IURLGenerator;
@@ -221,23 +220,23 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 		$this->response = $this->getMockForAbstractClass(IResponse::class);
 		//$this->usersession = $this->getMockForAbstractClass(IUserSession::class);
 		$this->usersession = $this->getMockBuilder(IUserSession::class)
-		->disableOriginalConstructor()
-		->onlyMethods([
-			'setUser', 
-			'login', 
-			'logout', 
-			'getUser', 
-			'isLoggedIn',
-			'getImpersonatingUserID', 
-			'setImpersonatingUserID',
-			'setVolatileActiveUser' // Diese Methode hinzufügen, falls sie gebraucht wird.
-		])
-		->addMethods([
-			'completeLogin', 
-			'createSessionToken', 
-			'createRememberMeToken'
-		])
-		->getMock();
+			->disableOriginalConstructor()
+			->onlyMethods([
+				'setUser',
+				'login',
+				'logout',
+				'getUser',
+				'isLoggedIn',
+				'getImpersonatingUserID',
+				'setImpersonatingUserID',
+				'setVolatileActiveUser' // Diese Methode hinzufügen, falls sie gebraucht wird.
+			])
+			->addMethods([
+				'completeLogin',
+				'createSessionToken',
+				'createRememberMeToken'
+			])
+			->getMock();
 
 		$this->usermanager = $this->getUserManagerSetup();
 		$this->groupmanager = $this->getMockForAbstractClass(IGroupManager::class);
