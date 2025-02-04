@@ -781,16 +781,6 @@ class LoginController extends BaseOidcController {
 		);
 	}
 
-	private function toCodeChallenge(string $data): string {
-		// Basically one big work around for the base64url decode being weird
-		$h = pack('H*', hash('sha256', $data));
-		$s = base64_encode($h); // Regular base64 encoder
-		$s = explode('=', $s)[0]; // Remove any trailing '='s
-		$s = str_replace('+', '-', $s); // 62nd char of encoding
-		$s = str_replace('/', '_', $s); // 63rd char of encoding
-		return $s;
-	}
-
 	private function isMobileDevice(): bool {
 		$mobileKeywords = $this->config->getSystemValue('user_oidc.mobile_keywords', ['Android', 'iPhone', 'iPad', 'iPod', 'Windows Phone', 'Mobile', 'webOS', 'BlackBerry', 'Opera Mini', 'IEMobile']);
 	
@@ -805,5 +795,15 @@ class LoginController extends BaseOidcController {
 		}
 
 		return false; // device is desktop
+	}
+
+	private function toCodeChallenge(string $data): string {
+		// Basically one big work around for the base64url decode being weird
+		$h = pack('H*', hash('sha256', $data));
+		$s = base64_encode($h); // Regular base64 encoder
+		$s = explode('=', $s)[0]; // Remove any trailing '='s
+		$s = str_replace('+', '-', $s); // 62nd char of encoding
+		$s = str_replace('/', '_', $s); // 63rd char of encoding
+		return $s;
 	}
 }
