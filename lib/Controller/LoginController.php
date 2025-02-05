@@ -487,21 +487,14 @@ class LoginController extends BaseOidcController {
 		}
 
 		if ($autoProvisionAllowed) {
-			// $softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
-			// if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null) {
-			// if soft auto-provisioning is disabled,
-			// we refuse login for a user that already exists in another backend
-			// $message = $this->l10n->t('User conflict');
-			// return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
-			// }
-
 			// TODO: (proposal) refactor all provisioning strategies into event handlers
 			$user = null;
 
 			try {
+				// use potential user from other backend, create it in our backend if it does not exist
 				$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $userFromOtherBackend);
 			} catch (ProvisioningDeniedException $denied) {
-				// TODO MagentaCLOUD should upstream the exception handling
+				// TODO: MagentaCLOUD should upstream the exception handling
 				$redirectUrl = $denied->getRedirectUrl();
 				if ($redirectUrl === null) {
 					$message = $this->l10n->t('Failed to provision user');
@@ -513,9 +506,12 @@ class LoginController extends BaseOidcController {
 				}
 			}
 
-			// use potential user from other backend, create it in our backend if it does not exist
-			// $user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $userFromOtherBackend);
-			// no default exception handling to pass on unittest assertion failures
+			if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null && $user === null) {
+				// if soft auto-provisioning is disabled,
+				// we refuse login for a user that already exists in another backend
+				$message = $this->l10n->t('User conflict');
+				return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
+			}
 		} else {
 			// when auto provision is disabled, we assume the user has been created by another user backend (or manually)
 			$user = $userFromOtherBackend;
@@ -539,6 +535,17 @@ class LoginController extends BaseOidcController {
 			$this->eventDispatcher->dispatchTyped(new BeforeUserLoggedInEvent($user->getUID(), null, \OC::$server->get(Backend::class)));
 			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $user->getUID(), null, false));
 		}
+
+		$tokenExchangeEnabled = (isset($oidcSystemConfig['token_exchange']) && $oidcSystemConfig['token_exchange'] === true);
+		if ($tokenExchangeEnabled) {
+			// store all token information for potential token exchange requests
+			$tokenData = array_merge(
+				$data,
+				['provider_id' => $providerId],
+			);
+			$this->tokenService->storeToken($tokenData);
+		}
+		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
