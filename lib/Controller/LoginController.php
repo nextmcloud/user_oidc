@@ -165,12 +165,26 @@ class LoginController extends BaseOidcController {
 			return $this->buildErrorTemplateResponse($message, Http::STATUS_NOT_FOUND, ['reason' => 'provider unreachable']);
 		}
 
-		$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$this->session->set(self::STATE, $state);
-		$this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
+		// $state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+		// $this->session->set(self::STATE, $state);
+		// $this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
 
-		$nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$this->session->set(self::NONCE, $nonce);
+		// $nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+		// $this->session->set(self::NONCE, $nonce);
+
+		// check if oidc state is present in session data
+		if ($this->session->exists(self::STATE)) {
+			$state = $this->session->get(self::STATE);
+			$nonce = $this->session->get(self::NONCE);
+		} else {
+			$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+			$this->session->set(self::STATE, $state);
+			$this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
+
+			$nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+			$this->session->set(self::NONCE, $nonce);
+			$this->session->set(self::PROVIDERID, $providerId);
+		}
 
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
 		$isPkceSupported = in_array('S256', $discovery['code_challenge_methods_supported'] ?? [], true);
@@ -182,7 +196,7 @@ class LoginController extends BaseOidcController {
 			$this->session->set(self::CODE_VERIFIER, $code_verifier);
 		}
 
-		$this->session->set(self::PROVIDERID, $providerId);
+		// $this->session->set(self::PROVIDERID, $providerId);
 		$this->session->close();
 
 		// get attribute mapping settings
@@ -518,16 +532,21 @@ class LoginController extends BaseOidcController {
 			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $user->getUID(), null, false));
 		}
 
-		$tokenExchangeEnabled = (isset($oidcSystemConfig['token_exchange']) && $oidcSystemConfig['token_exchange'] === true);
-		if ($tokenExchangeEnabled) {
-			// store all token information for potential token exchange requests
-			$tokenData = array_merge(
-				$data,
-				['provider_id' => $providerId],
-			);
-			$this->tokenService->storeToken($tokenData);
-		}
-		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
+		// remove code login session values
+		$this->session->remove(self::STATE);
+		$this->session->remove(self::NONCE);
+
+		// $tokenExchangeEnabled = (isset($oidcSystemConfig['token_exchange']) && $oidcSystemConfig['token_exchange'] === true);
+		// if ($tokenExchangeEnabled) {
+		// store all token information for potential token exchange requests
+		// $tokenData = array_merge(
+		// $data,
+		// ['provider_id' => $providerId],
+		// );
+		// $this->tokenService->storeToken($tokenData);
+		// }
+
+		// $this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
@@ -536,7 +555,8 @@ class LoginController extends BaseOidcController {
 		try {
 			$authToken = $this->authTokenProvider->getToken($this->session->getId());
 			$this->sessionMapper->createSession(
-				$idTokenPayload->sid ?? 'fallback-sid',
+				//$idTokenPayload->sid ?? 'fallback-sid',
+				$idTokenPayload->{'urn:telekom.com:session_token'} ?? 'fallback-sid',
 				$idTokenPayload->sub ?? 'fallback-sub',
 				$idTokenPayload->iss ?? 'fallback-iss',
 				$authToken->getId(),
@@ -628,7 +648,9 @@ class LoginController extends BaseOidcController {
 		}
 
 		// cleanup related oidc session
-		$this->sessionMapper->deleteFromNcSessionId($this->session->getId());
+		// it is not a good idea to remove the session early as some IDM send a backchannel logout also to the initiating system.
+		// This will falsely fail if already deleted. So rely always on backchannel cleanup or make this an option?
+		// $this->sessionMapper->deleteFromNcSessionId($this->session->getId());
 
 		$this->userSession->logout();
 
@@ -716,7 +738,9 @@ class LoginController extends BaseOidcController {
 		}
 
 		$sub = $logoutTokenPayload->sub;
-		if ($oidcSession->getSub() !== $sub) {
+		// if ($oidcSession->getSub() !== $sub) {
+		// handle sub only if it is available; session is enough to identify a logout
+		if (isset($logoutTokenPayload->sub) && ($oidcSession->getSub() !== $sub)) {
 			return $this->getBackchannelLogoutErrorResponse(
 				'invalid SUB',
 				'The sub does not match the one from the login ID token',
@@ -741,17 +765,35 @@ class LoginController extends BaseOidcController {
 			$userId = $authToken->getUID();
 			$this->authTokenProvider->invalidateTokenById($userId, $authToken->getId());
 		} catch (InvalidTokenException $e) {
-			return $this->getBackchannelLogoutErrorResponse(
-				'nc session not found',
-				'The authentication session was not found in Nextcloud',
-				['nc_auth_session_not_found' => $authTokenId]
-			);
+			// it is not a problem if the auth token is already deleted, so no error
+			// return $this->getBackchannelLogoutErrorResponse(
+			// 'nc session not found',
+			// 'The authentication session was not found in Nextcloud',
+			// ['nc_auth_session_not_found' => $authTokenId]
+			// );
 		}
 
 		// cleanup
 		$this->sessionMapper->delete($oidcSession);
 
-		return new JSONResponse([], Http::STATUS_OK);
+		// return new JSONResponse([], Http::STATUS_OK);
+		return new JSONResponse();
+	}
+
+	/**
+	 * Backward compatible function for MagentaCLOUD to smoothly transition to new config
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 * @BruteForceProtection(action=userOidcBackchannelLogout)
+	 *
+	 * @param string $logout_token
+	 * @return JSONResponse
+	 * @throws Exception
+	 * @throws \JsonException
+	 */
+	public function telekomBackChannelLogout(string $logout_token = '') {
+		return $this->backChannelLogout('Telekom', $logout_token);
 	}
 
 	/**
