@@ -35,6 +35,7 @@ use OCP\Http\Client\IClientService;
 use OCP\IAvatarManager;
 use OCP\IConfig;
 use OCP\IGroupManager;
+use OCP\ISession;
 use OCP\IUser;
 use OCP\IUserManager;
 use Psr\Container\ContainerExceptionInterface;
@@ -68,6 +69,7 @@ class ProvisioningEventService extends ProvisioningService {
 		IClientService $clientService,
 		IAvatarManager $avatarManager,
 		IConfig $config,
+		ISession $session,
 	) {
 		parent::__construct($idService,
 			$providerService,
@@ -80,6 +82,7 @@ class ProvisioningEventService extends ProvisioningService {
 			$clientService,
 			$avatarManager,
 			$config,
+			$session,
 		);
 		$this->eventDispatcher = $eventDispatcher;
 		$this->logger = $logger;
