@@ -83,7 +83,7 @@ class LoginController extends BaseOidcController {
 		private ICrypto $crypto,
 		private TokenService $tokenService,
 	) {
-		// Psalm-Fix: BaseOidcController erwartet $l10n im Konstruktor
+		// BaseOidcController erwartet $l10n im Konstruktor
 		parent::__construct($request, $config, $this->l10n);
 	}
 
@@ -93,7 +93,7 @@ class LoginController extends BaseOidcController {
 	}
 
 	private function buildProtocolErrorResponse(?bool $throttle = null): TemplateResponse {
-		// Psalm-Fix: buildFailureTemplateResponse entfernte/abweichende Signatur vermeiden
+		// buildFailureTemplateResponse entfernte/abweichende Signatur vermeiden
 		// Nutze buildErrorTemplateResponse(message, status, metadata, throttleFlag)
 		$message = $this->l10n->t('You must access Nextcloud with HTTPS to use OpenID Connect.');
 		return $this->buildErrorTemplateResponse(
@@ -105,22 +105,11 @@ class LoginController extends BaseOidcController {
 	}
 
 	private function getRedirectResponse(?string $redirectUrl = null): RedirectResponse {
-		if ($redirectUrl === null || $redirectUrl === '') {
-			return new RedirectResponse($this->urlGenerator->getBaseUrl());
-		}
-
-		if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $redirectUrl) === 1 || str_starts_with($redirectUrl, '//')) {
-			return new RedirectResponse($this->urlGenerator->getBaseUrl());
-		}
-
-		$redirectUrl = preg_replace('/[\r\n\\\\]/', '', $redirectUrl);
-
-		$path = parse_url($redirectUrl, PHP_URL_PATH) ?? '/';
-		$query = parse_url($redirectUrl, PHP_URL_QUERY);
-		$safe = rtrim($this->urlGenerator->getBaseUrl(), '/') . '/' . ltrim($path, '/')
-			. ($query ? '?' . $query : '');
-
-		return new RedirectResponse($safe);
+		return new RedirectResponse(
+			$redirectUrl === null
+				? $this->urlGenerator->getBaseUrl()
+				: preg_replace('/^https?:\/\/[^\/]+/', '', $redirectUrl)
+		);
 	}
 
 	/**
