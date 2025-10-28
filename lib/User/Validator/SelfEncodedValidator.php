@@ -1,4 +1,5 @@
 <?php
+
 /**
  * SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -11,6 +12,7 @@ namespace OCA\UserOIDC\User\Validator;
 use OCA\UserOIDC\Db\Provider;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\User\Provisioning\SelfEncodedTokenProvisioning;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -22,6 +24,7 @@ class SelfEncodedValidator implements IBearerTokenValidator {
 
 	public function __construct(
 		private DiscoveryService $discoveryService,
+		private ProvisioningService $provisioningService,
 		private LoggerInterface $logger,
 		private ITimeFactory $timeFactory,
 		private IConfig $config,
@@ -31,7 +34,8 @@ class SelfEncodedValidator implements IBearerTokenValidator {
 	public function isValidBearerToken(Provider $provider, string $bearerToken): ?string {
 		/** @var ProviderService $providerService */
 		$providerService = \OC::$server->get(ProviderService::class);
-		$uidAttribute = $providerService->getSetting($provider->getId(), ProviderService::SETTING_MAPPING_UID, ProviderService::SETTING_MAPPING_UID_DEFAULT);
+		$providerId = $provider->getId();
+		$uidAttribute = $providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_UID, ProviderService::SETTING_MAPPING_UID_DEFAULT);
 
 		// try to decode the bearer token
 		JWT::$leeway = 60;
@@ -56,6 +60,7 @@ class SelfEncodedValidator implements IBearerTokenValidator {
 		}
 
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
+		// ref https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
 		$checkAudience = !isset($oidcSystemConfig['selfencoded_bearer_validation_audience_check'])
 			|| !in_array($oidcSystemConfig['selfencoded_bearer_validation_audience_check'], [false, 'false', 0, '0'], true);
 		$providerClientId = $provider->getClientId();
@@ -70,23 +75,9 @@ class SelfEncodedValidator implements IBearerTokenValidator {
 			}
 		}
 
-		$checkAzp = !isset($oidcSystemConfig['selfencoded_bearer_validation_azp_check'])
-			|| !in_array($oidcSystemConfig['selfencoded_bearer_validation_azp_check'], [false, 'false', 0, '0'], true);
-		if ($checkAzp) {
-			// ref https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
-			// If the azp claim is present, it should be the client ID
-			if (isset($payload->azp) && $payload->azp !== $providerClientId) {
-				$this->logger->debug('This token is not for us, authorized party (azp) is different than the client ID');
-				return null;
-			}
-		}
-
 		// find the user ID
-		if (!isset($payload->{$uidAttribute})) {
-			return null;
-		}
-
-		return $payload->{$uidAttribute};
+		$uid = $this->provisioningService->getClaimValue($payload, $uidAttribute, $providerId);
+		return $uid ?: null;
 	}
 
 	public function getProvisioningStrategy(): string {
