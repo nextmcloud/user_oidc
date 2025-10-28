@@ -783,7 +783,7 @@ class LoginController extends BaseOidcController {
 	private function getBackchannelLogoutErrorResponse(
 		string $error,
 		string $description,
-		array $throttleMetadata = []
+		array $throttleMetadata = [],
 	): JSONResponse {
 		$this->logger->debug('Backchannel logout error', ['error' => $error, 'description' => $description] + $throttleMetadata);
 		return new JSONResponse(
@@ -796,6 +796,6 @@ class LoginController extends BaseOidcController {
 	}
 
 	private function toCodeChallenge(string $data): string {
-		return rtrim(strtr(base64_encode(hash('sha256', $data, true)), '+/', '-_'), '=');	
+		return rtrim(strtr(base64_encode(hash('sha256', $data, true)), '+/', '-_'), '=');
 	}
 }
