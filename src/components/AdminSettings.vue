@@ -11,11 +11,26 @@
 				{{ t('user_oidc', 'Allows users to authenticate via OpenID Connect providers.') }}
 			</p>
 			<p>
-				<NcCheckboxRadioSwitch :checked.sync="id4meState"
+				<NcCheckboxRadioSwitch
+					v-model="id4meState"
 					wrapper-element="div"
-					@update:checked="onId4MeChange">
+					@update:model-value="onId4MeChange">
 					{{ t('user_oidc', 'Enable ID4me') }}
 				</NcCheckboxRadioSwitch>
+			</p>
+			<p class="line">
+				<NcCheckboxRadioSwitch
+					v-model="storeLoginTokenState"
+					wrapper-element="div"
+					@update:model-value="onStoreLoginTokenChange">
+					{{ t('user_oidc', 'Store login tokens') }}
+				</NcCheckboxRadioSwitch>
+				<NcButton variant="tertiary"
+					:title="t('user_oidc', 'This is needed if you are using other apps that want to use user_oidc\'s token exchange or simply get the login token')">
+					<template #icon>
+						<HelpCircleOutlineIcon />
+					</template>
+				</NcButton>
 			</p>
 		</div>
 		<div class="section">
@@ -34,13 +49,13 @@
 			<NcModal v-if="showNewProvider"
 				size="large"
 				:name="t('user_oidc', 'Register a new provider')"
-				:can-close="false">
+				:no-close="true">
 				<div class="providermodal__wrapper">
 					<h3>{{ t('user_oidc', 'Register a new provider') }}</h3>
 					<p class="settings-hint">
 						{{ t('user_oidc', 'Configure your provider to redirect back to {url}', { url: redirectUrl }) }}
 					</p>
-					<SettingsForm :provider="newProvider" @submit="onSubmit" @cancel="showNewProvider=false" />
+					<SettingsForm :provider="newProvider" @submit="onSubmit" @cancel-form="showNewProvider=false" />
 				</div>
 			</NcModal>
 
@@ -66,15 +81,15 @@
 					<NcActions :style="customActionsStyle">
 						<NcActionButton @click="updateProvider(provider)">
 							<template #icon>
-								<PencilIcon :size="20" />
+								<PencilOutlineIcon :size="20" />
 							</template>
 							{{ t('user_oidc', 'Update') }}
 						</NcActionButton>
 					</NcActions>
 					<NcActions :style="customActionsStyle">
-						<NcActionButton @click="onRemove(provider)">
+						<NcActionButton @click="onProviderDeleteClick(provider)">
 							<template #icon>
-								<DeleteIcon :size="20" />
+								<TrashCanOutlineIcon :size="20" />
 							</template>
 							{{ t('user_oidc', 'Remove') }}
 						</NcActionButton>
@@ -85,32 +100,53 @@
 			<NcModal v-if="editProvider"
 				size="large"
 				:name="t('user_oidc', 'Update provider settings')"
-				:can-close="false">
+				:no-close="true">
 				<div class="providermodal__wrapper">
 					<h3>{{ t('user_oidc', 'Update provider settings') }}</h3>
 					<SettingsForm :provider="editProvider"
 						:update="true"
 						:submit-text="t('user_oidc', 'Update provider')"
 						@submit="onUpdate"
-						@cancel="editProvider=null" />
+						@cancel-form="editProvider = null" />
 				</div>
 			</NcModal>
+			<NcDialog v-model:open="showDeletionConfirmation"
+				:name="t('user_oidc', 'Confirm deletion')"
+				:message="deletionConfirmationMessage">
+				<template #actions>
+					<NcButton
+						@click="showDeletionConfirmation = false">
+						{{ t('user_oidc', 'Cancel') }}
+					</NcButton>
+					<NcButton
+						variant="error"
+						@click="confirmDelete">
+						<template #icon>
+							<TrashCanOutlineIcon />
+						</template>
+						{{ t('user_oidc', 'Delete') }}
+					</NcButton>
+				</template>
+			</NcDialog>
 		</div>
 	</div>
 </template>
 
 <script>
-import DeleteIcon from 'vue-material-design-icons/Delete.vue'
-import PencilIcon from 'vue-material-design-icons/Pencil.vue'
+import HelpCircleOutlineIcon from 'vue-material-design-icons/HelpCircleOutline.vue'
+import PencilOutlineIcon from 'vue-material-design-icons/PencilOutline.vue'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
+import TrashCanOutlineIcon from 'vue-material-design-icons/TrashCanOutline.vue'
 
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '@nextcloud/dialogs'
-import NcActions from '@nextcloud/vue/dist/Components/NcActions.js'
-import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js'
-import NcModal from '@nextcloud/vue/dist/Components/NcModal.js'
-import NcCheckboxRadioSwitch from '@nextcloud/vue/dist/Components/NcCheckboxRadioSwitch.js'
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcModal from '@nextcloud/vue/components/NcModal'
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import { confirmPassword } from '@nextcloud/password-confirmation'
 
 import logger from '../logger.js'
@@ -124,12 +160,19 @@ export default {
 		NcActionButton,
 		NcModal,
 		NcCheckboxRadioSwitch,
-		PencilIcon,
-		DeleteIcon,
+		NcButton,
+		PencilOutlineIcon,
+		TrashCanOutlineIcon,
+		NcDialog,
 		PlusIcon,
+		HelpCircleOutlineIcon,
 	},
 	props: {
 		initialId4MeState: {
+			type: Boolean,
+			required: true,
+		},
+		initialStoreLoginTokenState: {
 			type: Boolean,
 			required: true,
 		},
@@ -146,6 +189,8 @@ export default {
 		return {
 			id4meState: this.initialId4MeState,
 			loadingId4Me: false,
+			storeLoginTokenState: this.initialStoreLoginTokenState,
+			loadingStoreLoginToken: false,
 			providers: this.initialProviders,
 			newProvider: {
 				identifier: '',
@@ -153,6 +198,7 @@ export default {
 				clientSecret: '',
 				discoveryEndpoint: '',
 				endSessionEndpoint: '',
+				postLogoutUri: '',
 				settings: {
 					uniqueUid: true,
 					checkBearer: false,
@@ -168,7 +214,17 @@ export default {
 				'--color-background-hover': 'var(--color-background-darker)',
 			},
 			redirectUri: window.location.protocol + '//' + window.location.host + generateUrl('/apps/user_oidc/code'),
+			showDeletionConfirmation: false,
+			providerToDelete: null,
 		}
+	},
+	computed: {
+		deletionConfirmationMessage() {
+			if (this.providerToDelete) {
+				return t('user_oidc', 'Are you sure you want to delete the provider "{providerName}"?', { providerName: this.providerToDelete.identifier })
+			}
+			return ''
+		},
 	},
 	methods: {
 		async onId4MeChange(newValue) {
@@ -184,9 +240,29 @@ export default {
 				})
 			} catch (error) {
 				logger.error('Could not save ID4me state: ' + error.message, { error })
-				showError(t('user_oidc', 'Could not save ID4me state: ' + error.message))
+				showError(t('user_oidc', 'Could not save ID4me state: {msg}', { msg: error.message }))
 			} finally {
 				this.loadingId4Me = false
+			}
+		},
+		async onStoreLoginTokenChange(newValue) {
+			logger.info('Store login token state changed', { enabled: newValue })
+
+			this.loadingStoreLoginToken = true
+			try {
+				await confirmPassword()
+				const url = generateUrl('/apps/user_oidc/admin-config')
+
+				await axios.post(url, {
+					values: {
+						store_login_token: newValue,
+					},
+				})
+			} catch (error) {
+				logger.error('Could not save storeLoginToken state: ' + error.message, { error })
+				showError(t('user_oidc', 'Could not save storeLoginToken state: {msg}', { msg: error.message }))
+			} finally {
+				this.loadingStoreLoginToken = false
 			}
 		},
 		updateProvider(provider) {
@@ -204,13 +280,21 @@ export default {
 				await axios.put(url, provider)
 				this.editProvider = null
 				const index = this.providers.findIndex((p) => p.id === provider.id)
-				this.$set(this.providers, index, provider)
+				this.providers[index] = provider
 			} catch (error) {
 				logger.error('Could not update the provider: ' + error.message, { error })
 				showError(t('user_oidc', 'Could not update the provider:') + ' ' + (error.response?.data?.message ?? error.message))
 			}
 		},
-		async onRemove(provider) {
+		onProviderDeleteClick(provider) {
+			this.providerToDelete = provider
+			this.showDeletionConfirmation = true
+		},
+		confirmDelete() {
+			this.deleteProvider(this.providerToDelete)
+			this.showDeletionConfirmation = false
+		},
+		async deleteProvider(provider) {
 			await confirmPassword()
 			logger.info('Remove oidc provider', { provider })
 
@@ -221,8 +305,9 @@ export default {
 				this.providers = this.providers.filter(p => p.id !== provider.id)
 			} catch (error) {
 				logger.error('Could not remove a provider: ' + error.message, { error })
-				showError(t('user_oidc', 'Could not remove provider: ' + error.message))
+				showError(t('user_oidc', 'Could not remove provider: {msg}', { msg: error.message }))
 			}
+			this.providerToDelete = null
 		},
 		async onSubmit() {
 			await confirmPassword()
@@ -239,6 +324,7 @@ export default {
 				this.newProvider.clientSecret = ''
 				this.newProvider.discoveryEndpoint = ''
 				this.newProvider.endSessionEndpoint = ''
+				this.newProvider.postLogoutUri = ''
 				this.showNewProvider = false
 			} catch (error) {
 				logger.error('Could not register a provider: ' + error.message, { error })
@@ -261,6 +347,10 @@ h2 .action-item {
 h3 {
 	font-weight: bold;
 	padding-bottom: 12px;
+}
+
+.line {
+	display: flex;
 }
 
 .oidcproviders {

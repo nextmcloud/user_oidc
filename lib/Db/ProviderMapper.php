@@ -84,14 +84,15 @@ class ProviderMapper extends QBMapper {
 	 * @param string|null $discoveryuri
 	 * @param string $scope
 	 * @param string|null $endsessionendpointuri
+	 * @param string|null $postLogoutUri
 	 * @return Provider|Entity
 	 * @throws DoesNotExistException
-	 * @throws MultipleObjectsReturnedException
 	 * @throws Exception
+	 * @throws MultipleObjectsReturnedException
 	 */
 	public function createOrUpdateProvider(string $identifier, ?string $clientid = null,
 		?string $clientsecret = null, ?string $discoveryuri = null, string $scope = 'openid email profile',
-		?string $endsessionendpointuri = null, ?string $bearersecret = null) {
+		?string $endsessionendpointuri = null, ?string $postLogoutUri = null, ?string $bearersecret = null) {
 		try {
 			$provider = $this->findProviderByIdentifier($identifier);
 		} catch (DoesNotExistException $eNotExist) {
@@ -109,6 +110,7 @@ class ProviderMapper extends QBMapper {
 			$provider->setBearerSecret($bearersecret ?? '');
 			$provider->setDiscoveryEndpoint($discoveryuri);
 			$provider->setEndSessionEndpoint($endsessionendpointuri);
+			$provider->setPostLogoutUri($postLogoutUri);
 			$provider->setScope($scope);
 			return $this->insert($provider);
 		} else {
@@ -126,6 +128,9 @@ class ProviderMapper extends QBMapper {
 			}
 			if ($endsessionendpointuri !== null) {
 				$provider->setEndSessionEndpoint($endsessionendpointuri ?: null);
+			}
+			if ($postLogoutUri !== null) {
+				$provider->setPostLogoutUri($postLogoutUri ?: null);
 			}
 			$provider->setScope($scope);
 			return $this->update($provider);

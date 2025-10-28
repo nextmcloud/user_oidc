@@ -7,9 +7,15 @@
 
 namespace OCA\UserOIDC\Service;
 
+use InvalidArgumentException;
+use OC\Accounts\AccountManager;
+use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\AttributeMappedEvent;
 use OCP\Accounts\IAccountManager;
+use OCP\Accounts\PropertyDoesNotExistException;
+use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\DB\Exception;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Http\Client\IClientService;
@@ -17,8 +23,11 @@ use OCP\IAvatarManager;
 use OCP\IConfig;
 use OCP\IGroupManager;
 use OCP\Image;
+use OCP\ISession;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\L10N\IFactory;
+use OCP\PreConditionNotMetException;
 use OCP\User\Events\UserChangedEvent;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -37,7 +46,72 @@ class ProvisioningService {
 		private IClientService $clientService,
 		private IAvatarManager $avatarManager,
 		private IConfig $config,
+		private ISession $session,
+		private IFactory $l10nFactory,
 	) {
+	}
+
+	public function hasOidcUserProvisitioned(string $userId): bool {
+		try {
+			$this->userMapper->getUser($userId);
+			return true;
+		} catch (DoesNotExistException|MultipleObjectsReturnedException) {
+		}
+		return false;
+	}
+
+	/**
+	 * Resolves a claim path like "custom.nickname" or multiple alternatives separated by "|".
+	 * Returns the first found value, or null if none could be resolved.
+	 */
+	public function getClaimValues(object|array $tokenPayload, string $claimPath, int $providerId): mixed {
+		if ($claimPath === '') {
+			return null;
+		}
+
+		// Check config if dot-notation resolution is enabled
+		$resolveDot = $this->providerService->getSetting($providerId, ProviderService::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING, '0') === '1';
+
+		if (!$resolveDot) {
+			// fallback to simple access
+			if (is_object($tokenPayload) && property_exists($tokenPayload, $claimPath)) {
+				return $tokenPayload->{$claimPath};
+			} elseif (is_array($tokenPayload) && array_key_exists($claimPath, $tokenPayload)) {
+				return $tokenPayload[$claimPath];
+			}
+			return null;
+		}
+
+		// Support alternatives separated by "|"
+		$alternatives = explode('|', $claimPath);
+
+		foreach ($alternatives as $altPath) {
+			$parts = explode('.', trim($altPath));
+			$value = $tokenPayload;
+
+			foreach ($parts as $part) {
+				if (is_object($value) && property_exists($value, $part)) {
+					$value = $value->{$part};
+				} elseif (is_array($value) && array_key_exists($part, $value)) {
+					$value = $value[$part];
+				} else {
+					continue 2;
+				}
+			}
+
+			return $value;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Resolves a claim path like "custom.nickname" or multiple alternatives separated by "|".
+	 * Returns the first found string value, or null if none could be resolved.
+	 */
+	public function getClaimValue(object|array $tokenPayload, string $claimPath, int $providerId): mixed {
+		$value = $this->getClaimValues($tokenPayload, $claimPath, $providerId);
+		return is_string($value) ? $value : null;
 	}
 
 	/**
@@ -45,67 +119,84 @@ class ProvisioningService {
 	 * @param int $providerId
 	 * @param object $idTokenPayload
 	 * @param IUser|null $existingLocalUser
-	 * @return IUser|null
+	 * @return array{user: ?IUser, userData: array}
 	 * @throws Exception
+	 * @throws PropertyDoesNotExistException
+	 * @throws PreConditionNotMetException
 	 */
-	public function provisionUser(string $tokenUserId, int $providerId, object $idTokenPayload, ?IUser $existingLocalUser = null): ?IUser {
+	public function provisionUser(string $tokenUserId, int $providerId, object $idTokenPayload, ?IUser $existingLocalUser = null): array {
+		// user data potentially later used by globalsiteselector if user_oidc is used with global scale
+		$oidcGssUserData = get_object_vars($idTokenPayload);
+
 		// get name/email/quota information from the token itself
 		$emailAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_EMAIL, 'email');
-		$email = $idTokenPayload->{$emailAttribute} ?? null;
+		$email = $this->getClaimValue($idTokenPayload, $emailAttribute, $providerId);//$idTokenPayload->{$emailAttribute} ?? null;
 
 		$displaynameAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_DISPLAYNAME, 'name');
-		$userName = $idTokenPayload->{$displaynameAttribute} ?? null;
+		$userName = $this->getClaimValue($idTokenPayload, $displaynameAttribute, $providerId);//$idTokenPayload->{$displaynameAttribute} ?? null;
 
 		$quotaAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_QUOTA, 'quota');
-		$quota = $idTokenPayload->{$quotaAttribute} ?? null;
+		$quota = $this->getClaimValue($idTokenPayload, $quotaAttribute, $providerId);//$idTokenPayload->{$quotaAttribute} ?? null;
+
+		$languageAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_LANGUAGE, 'language');
+		$language = $this->getClaimValue($idTokenPayload, $languageAttribute, $providerId);//$idTokenPayload->{$languageAttribute} ?? null;
+
+		$localeAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_LOCALE, 'locale');
+		$locale = $this->getClaimValue($idTokenPayload, $localeAttribute, $providerId);
 
 		$genderAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GENDER, 'gender');
-		$gender = $idTokenPayload->{$genderAttribute} ?? null;
+		$gender = $this->getClaimValue($idTokenPayload, $genderAttribute, $providerId);//$idTokenPayload->{$genderAttribute} ?? null;
 
 		$addressAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_ADDRESS, 'address');
-		$address = $idTokenPayload->{$addressAttribute} ?? null;
+		$address = $this->getClaimValue($idTokenPayload, $addressAttribute, $providerId);//$idTokenPayload->{$addressAttribute} ?? null;
 
 		$postalcodeAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_POSTALCODE, 'postal_code');
-		$postalcode = $idTokenPayload->{$postalcodeAttribute} ?? null;
+		$postalcode = $this->getClaimValue($idTokenPayload, $postalcodeAttribute, $providerId);//$idTokenPayload->{$postalcodeAttribute} ?? null;
 
 		$streetAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_STREETADDRESS, 'street_address');
-		$street = $idTokenPayload->{$streetAttribute} ?? null;
+		$street = $this->getClaimValue($idTokenPayload, $streetAttribute, $providerId);//$idTokenPayload->{$streetAttribute} ?? null;
 
 		$localityAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_LOCALITY, 'locality');
-		$locality = $idTokenPayload->{$localityAttribute} ?? null;
+		$locality = $this->getClaimValue($idTokenPayload, $localityAttribute, $providerId);//$idTokenPayload->{$localityAttribute} ?? null;
 
 		$regionAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_REGION, 'region');
-		$region = $idTokenPayload->{$regionAttribute} ?? null;
+		$region = $this->getClaimValue($idTokenPayload, $regionAttribute, $providerId);//$idTokenPayload->{$regionAttribute} ?? null;
 
 		$countryAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_COUNTRY, 'country');
-		$country = $idTokenPayload->{$countryAttribute} ?? null;
+		$country = $this->getClaimValue($idTokenPayload, $countryAttribute, $providerId);//$idTokenPayload->{$countryAttribute} ?? null;
 
 		$websiteAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_WEBSITE, 'website');
-		$website = $idTokenPayload->{$websiteAttribute} ?? null;
+		$website = $this->getClaimValue($idTokenPayload, $websiteAttribute, $providerId);//$idTokenPayload->{$websiteAttribute} ?? null;
 
 		$avatarAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_AVATAR, 'avatar');
-		$avatar = $idTokenPayload->{$avatarAttribute} ?? null;
+		$avatar = $this->getClaimValue($idTokenPayload, $avatarAttribute, $providerId);//$idTokenPayload->{$avatarAttribute} ?? null;
 
 		$phoneAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_PHONE, 'phone_number');
-		$phone = $idTokenPayload->{$phoneAttribute} ?? null;
+		$phone = $this->getClaimValue($idTokenPayload, $phoneAttribute, $providerId);//$idTokenPayload->{$phoneAttribute} ?? null;
 
 		$twitterAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_TWITTER, 'twitter');
-		$twitter = $idTokenPayload->{$twitterAttribute} ?? null;
+		$twitter = $this->getClaimValue($idTokenPayload, $twitterAttribute, $providerId);//$idTokenPayload->{$twitterAttribute} ?? null;
 
 		$fediverseAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_FEDIVERSE, 'fediverse');
-		$fediverse = $idTokenPayload->{$fediverseAttribute} ?? null;
+		$fediverse = $this->getClaimValue($idTokenPayload, $fediverseAttribute, $providerId);//$idTokenPayload->{$fediverseAttribute} ?? null;
 
 		$organisationAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_ORGANISATION, 'organisation');
-		$organisation = $idTokenPayload->{$organisationAttribute} ?? null;
+		$organisation = $this->getClaimValue($idTokenPayload, $organisationAttribute, $providerId);//$idTokenPayload->{$organisationAttribute} ?? null;
 
 		$roleAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_ROLE, 'role');
-		$role = $idTokenPayload->{$roleAttribute} ?? null;
+		$role = $this->getClaimValue($idTokenPayload, $roleAttribute, $providerId);//$idTokenPayload->{$roleAttribute} ?? null;
 
 		$headlineAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_HEADLINE, 'headline');
-		$headline = $idTokenPayload->{$headlineAttribute} ?? null;
+		$headline = $this->getClaimValue($idTokenPayload, $headlineAttribute, $providerId);//$idTokenPayload->{$headlineAttribute} ?? null;
 
 		$biographyAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_BIOGRAPHY, 'biography');
-		$biography = $idTokenPayload->{$biographyAttribute} ?? null;
+		$biography = $this->getClaimValue($idTokenPayload, $biographyAttribute, $providerId);//$idTokenPayload->{$biographyAttribute} ?? null;
+
+		$pronounsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_PRONOUNS, 'pronouns');
+		$pronouns = $idTokenPayload->{$pronounsAttribute} ?? null;
+
+		$birthdateAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_BIRTHDATE, 'birthdate');
+		$birthdate = $idTokenPayload->{$birthdateAttribute} ?? null;
 
 		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_UID, $idTokenPayload, $tokenUserId);
 		$this->eventDispatcher->dispatchTyped($event);
@@ -121,7 +212,10 @@ class ProvisioningService {
 			$isUserCreationDisabled = isset($oidcSystemConfig['disable_account_creation'])
 				&& in_array($oidcSystemConfig['disable_account_creation'], [true, 'true', 1, '1'], true);
 			if ($isUserCreationDisabled) {
-				return null;
+				return [
+					'user' => null,
+					'userData' => $oidcGssUserData,
+				];
 			}
 
 			$backendUser = $this->userMapper->getOrCreate($providerId, $event->getValue() ?? '');
@@ -129,12 +223,19 @@ class ProvisioningService {
 
 			$user = $this->userManager->get($backendUser->getUserId());
 			if ($user === null) {
-				return null;
+				return [
+					'user' => null,
+					'userData' => $oidcGssUserData,
+				];
 			}
 		}
 
 		$account = $this->accountManager->getAccount($user);
-		$scope = 'v2-local';
+		$fallbackScope = 'v2-local';
+		$defaultScopes = array_merge(
+			AccountManager::DEFAULT_SCOPES,
+			$this->config->getSystemValue('account_manager.default_property_scope', []) ?? []
+		);
 
 		// Update displayname
 		if (isset($userName)) {
@@ -146,6 +247,7 @@ class ProvisioningService {
 		$this->eventDispatcher->dispatchTyped($event);
 		$this->logger->debug('Displayname mapping event dispatched');
 		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
+			$oidcGssUserData[$displaynameAttribute] = $event->getValue();
 			$newDisplayName = $event->getValue();
 			if ($existingLocalUser === null) {
 				$oldDisplayName = $backendUser->getDisplayName();
@@ -163,6 +265,12 @@ class ProvisioningService {
 				$oldDisplayName = $user->getDisplayName();
 				if ($newDisplayName !== $oldDisplayName) {
 					$user->setDisplayName($newDisplayName);
+					if ($user->getBackendClassName() === Application::APP_ID) {
+						$backendUser = $this->userMapper->getOrCreate($providerId, $user->getUID());
+						$backendUser->setDisplayName($newDisplayName);
+						$this->userMapper->update($backendUser);
+					}
+					$this->eventDispatcher->dispatchTyped(new UserChangedEvent($user, 'displayName', $newDisplayName, $oldDisplayName));
 				}
 			}
 		}
@@ -172,6 +280,7 @@ class ProvisioningService {
 		$this->eventDispatcher->dispatchTyped($event);
 		$this->logger->debug('Email mapping event dispatched');
 		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
+			$oidcGssUserData[$emailAttribute] = $event->getValue();
 			$user->setSystemEMailAddress($event->getValue());
 		}
 
@@ -180,20 +289,50 @@ class ProvisioningService {
 		$this->eventDispatcher->dispatchTyped($event);
 		$this->logger->debug('Quota mapping event dispatched');
 		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
+			$oidcGssUserData[$quotaAttribute] = $event->getValue();
 			$user->setQuota($event->getValue());
 		}
 
 		// Update groups
 		if ($this->providerService->getSetting($providerId, ProviderService::SETTING_GROUP_PROVISIONING, '0') === '1') {
-			$this->provisionUserGroups($user, $providerId, $idTokenPayload);
+			$groups = $this->provisionUserGroups($user, $providerId, $idTokenPayload);
+			// for gss
+			if ($groups !== null) {
+				$groupIds = array_map(static function ($group) {
+					return $group->gid;
+				}, $groups);
+				$groupsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
+				$oidcGssUserData[$groupsAttribute] = $groupIds;
+			}
 		}
 
-		// Update the phone number
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_PHONE, $idTokenPayload, $phone);
+		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_LOCALE, $idTokenPayload, $locale);
 		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Phone mapping event dispatched');
+		$this->logger->debug('Locale mapping event dispatched');
 		if ($event->hasValue()) {
-			$account->setProperty('phone', $event->getValue(), $scope, '1', '');
+			$locale = $event->getValue();
+			$locales = $this->l10nFactory->findAvailableLocales();
+			$localeCodes = array_map(static function ($l) {
+				return $l['code'];
+			}, $locales);
+			if (in_array($locale, $localeCodes, true) || $locale === 'en') {
+				$this->config->setUserValue($user->getUID(), 'core', 'locale', $locale);
+			} else {
+				$this->logger->debug('Invalid locale in ID token', ['locale' => $locale]);
+			}
+		}
+
+		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_LANGUAGE, $idTokenPayload, $language);
+		$this->eventDispatcher->dispatchTyped($event);
+		$this->logger->debug('Language mapping event dispatched');
+		if ($event->hasValue()) {
+			$language = $event->getValue();
+			$languagesCodes = $this->l10nFactory->findAvailableLanguages();
+			if (in_array($language, $languagesCodes, true) || $language === 'en') {
+				$this->config->setUserValue($user->getUID(), 'core', 'lang', $language);
+			} else {
+				$this->logger->debug('Invalid language in ID token', ['language' => $language]);
+			}
 		}
 
 		$addressParts = null;
@@ -228,21 +367,6 @@ class ProvisioningService {
 			$address = str_replace('  ', ' ', implode(', ', $addressParts));
 		}
 
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_ADDRESS, $idTokenPayload, $address);
-		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Address mapping event dispatched');
-		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
-			$account->setProperty('address', $event->getValue(), $scope, '1', '');
-		}
-
-		// Update the website
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_WEBSITE, $idTokenPayload, $website);
-		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Website mapping event dispatched');
-		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
-			$account->setProperty('website', $event->getValue(), $scope, '1', '');
-		}
-
 		// Update the avatar
 		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_AVATAR, $idTokenPayload, $avatar);
 		$this->eventDispatcher->dispatchTyped($event);
@@ -251,64 +375,65 @@ class ProvisioningService {
 			$this->setUserAvatar($user->getUID(), $event->getValue());
 		}
 
-		// Update twitter/X
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_TWITTER, $idTokenPayload, $twitter);
-		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Twitter mapping event dispatched');
-		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
-			$account->setProperty('twitter', $event->getValue(), $scope, '1', '');
-		}
-
-		// Update fediverse
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_FEDIVERSE, $idTokenPayload, $fediverse);
-		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Fediverse mapping event dispatched');
-		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
-			$account->setProperty('fediverse', $event->getValue(), $scope, '1', '');
-		}
-
-		// Update the organisation
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_ORGANISATION, $idTokenPayload, $organisation);
-		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Organisation mapping event dispatched');
-		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
-			$account->setProperty('organisation', $event->getValue(), $scope, '1', '');
-		}
-
-		// Update role
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_ROLE, $idTokenPayload, $role);
-		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Role mapping event dispatched');
-		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
-			$account->setProperty('role', $event->getValue(), '1', '');
-		}
-
-		// Update the headline
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_HEADLINE, $idTokenPayload, $headline);
-		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Headline mapping event dispatched');
-		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
-			$account->setProperty('headline', $event->getValue(), $scope, '1', '');
-		}
-
-		// Update the biography
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_BIOGRAPHY, $idTokenPayload, $biography);
-		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Biography mapping event dispatched');
-		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
-			$account->setProperty('biography', $event->getValue(), $scope, '1', '');
-		}
-
 		// Update the gender
+		// Since until now there is no default for property for gender we have to use default
+		// In v31 there will be introduced PRONOUNS, which could be of better use
 		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_GENDER, $idTokenPayload, $gender);
 		$this->eventDispatcher->dispatchTyped($event);
 		$this->logger->debug('Gender mapping event dispatched');
 		if ($event->hasValue() && $event->getValue() !== null && $event->getValue() !== '') {
-			$account->setProperty('gender', $event->getValue(), $scope, '1', '');
+			$account->setProperty('gender', $event->getValue(), $fallbackScope, '1', '');
 		}
 
-		$this->accountManager->updateAccount($account);
-		return $user;
+		$simpleAccountPropertyAttributes = [
+			IAccountManager::PROPERTY_PHONE => ['value' => $phone, 'setting_key' => ProviderService::SETTING_MAPPING_PHONE],
+			IAccountManager::PROPERTY_ADDRESS => ['value' => $address, 'setting_key' => ProviderService::SETTING_MAPPING_PHONE],
+			IAccountManager::PROPERTY_WEBSITE => ['value' => $website, 'setting_key' => ProviderService::SETTING_MAPPING_WEBSITE],
+			IAccountManager::PROPERTY_TWITTER => ['value' => $twitter, 'setting_key' => ProviderService::SETTING_MAPPING_TWITTER],
+			IAccountManager::PROPERTY_FEDIVERSE => ['value' => $fediverse, 'setting_key' => ProviderService::SETTING_MAPPING_FEDIVERSE],
+			IAccountManager::PROPERTY_ORGANISATION => ['value' => $organisation, 'setting_key' => ProviderService::SETTING_MAPPING_ORGANISATION],
+			IAccountManager::PROPERTY_ROLE => ['value' => $role, 'setting_key' => ProviderService::SETTING_MAPPING_ROLE],
+			IAccountManager::PROPERTY_HEADLINE => ['value' => $headline, 'setting_key' => ProviderService::SETTING_MAPPING_HEADLINE],
+			IAccountManager::PROPERTY_BIOGRAPHY => ['value' => $biography, 'setting_key' => ProviderService::SETTING_MAPPING_BIOGRAPHY],
+		];
+		// properties that appeared after 28 (our min supported NC version)
+		if (defined(IAccountManager::class . '::PROPERTY_PRONOUNS')) {
+			$simpleAccountPropertyAttributes[IAccountManager::PROPERTY_PRONOUNS] = ['value' => $pronouns, 'setting_key' => ProviderService::SETTING_MAPPING_PRONOUNS];
+		}
+		if (defined(IAccountManager::class . '::PROPERTY_BIRTHDATE')) {
+			$simpleAccountPropertyAttributes[IAccountManager::PROPERTY_BIRTHDATE] = ['value' => $birthdate, 'setting_key' => ProviderService::SETTING_MAPPING_BIRTHDATE];
+		}
+
+		foreach ($simpleAccountPropertyAttributes as $property => $values) {
+			$event = new AttributeMappedEvent($values['setting_key'], $idTokenPayload, $values['value']);
+			$this->eventDispatcher->dispatchTyped($event);
+			$this->logger->debug($property . ' mapping event dispatched');
+			if ($event->hasValue()) {
+				$account->setProperty($property, $event->getValue(), $defaultScopes[$property] ?? $fallbackScope, '1', '');
+			}
+		}
+
+		while (true) {
+			try {
+				$this->accountManager->updateAccount($account);
+				break;
+			} catch (InvalidArgumentException $e) {
+				// If the message is a property name, then this was throws because of an invalid property value
+				if (in_array($e->getMessage(), IAccountManager::ALLOWED_PROPERTIES)) {
+					$property = $account->getProperty($e->getMessage());
+					// Remove the property from account
+					$account->setProperty($property->getName(), '', $property->getScope(), IAccountManager::NOT_VERIFIED);
+					$this->logger->info('Invalid account property provisioned', ['account' => $user->getUID(), 'property' => $property->getName()]);
+					continue;
+				}
+				// unrelated error - rethrow
+				throw $e;
+			}
+		}
+		return [
+			'user' => $user,
+			'userData' => $oidcGssUserData,
+		];
 	}
 
 	/**
@@ -387,7 +512,7 @@ class ProvisioningService {
 
 	public function getSyncGroupsOfToken(int $providerId, object $idTokenPayload) {
 		$groupsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
-		$groupsData = $idTokenPayload->{$groupsAttribute} ?? null;
+		$groupsData = $this->getClaimValues($idTokenPayload, $groupsAttribute, $providerId);
 
 		$groupsWhitelistRegex = $this->getGroupWhitelistRegex($providerId);
 
@@ -398,6 +523,14 @@ class ProvisioningService {
 		if ($event->hasValue() && $event->getValue() !== null) {
 			// casted to null if empty value
 			$groups = json_decode($event->getValue() ?? '');
+			// support values like group1,group2
+			if (is_string($groups)) {
+				$groups = explode(',', $groups);
+				// remove surrounding spaces in each group
+				$groups = array_map('trim', $groups);
+				// remove empty strings
+				$groups = array_filter($groups);
+			}
 			$syncGroups = [];
 
 			foreach ($groups as $k => $v) {
@@ -414,9 +547,16 @@ class ProvisioningService {
 					continue;
 				}
 
-				if ($groupsWhitelistRegex && !preg_match($groupsWhitelistRegex, $group->gid)) {
-					$this->logger->debug('Skipped group `' . $group->gid . '` for importing as not part of whitelist');
-					continue;
+				if ($groupsWhitelistRegex) {
+					$matchResult = preg_match($groupsWhitelistRegex, $group->gid);
+					if ($matchResult !== 1) {
+						if ($matchResult === 0) {
+							$this->logger->debug('Skipped group `' . $group->gid . '` for importing as not part of whitelist (not matching the regex)');
+						} else {
+							$this->logger->debug('Skipped group `' . $group->gid . '` for importing as not part of whitelist (failure when matching)', ['match_result' => $matchResult]);
+						}
+						continue;
+					}
 				}
 
 				$group->gid = $this->idService->getId($providerId, $group->gid);
@@ -430,36 +570,40 @@ class ProvisioningService {
 		return null;
 	}
 
-	public function provisionUserGroups(IUser $user, int $providerId, object $idTokenPayload): void {
+	public function provisionUserGroups(IUser $user, int $providerId, object $idTokenPayload): ?array {
 		$groupsWhitelistRegex = $this->getGroupWhitelistRegex($providerId);
 
 		$syncGroups = $this->getSyncGroupsOfToken($providerId, $idTokenPayload);
 
-		if ($syncGroups !== null) {
+		if ($syncGroups === null) {
+			return null;
+		}
 
-			$userGroups = $this->groupManager->getUserGroups($user);
-			foreach ($userGroups as $group) {
-				if (!in_array($group->getGID(), array_column($syncGroups, 'gid'))) {
-					if ($groupsWhitelistRegex && !preg_match($groupsWhitelistRegex, $group->getGID())) {
-						continue;
-					}
-					$group->removeUser($user);
+		$userGroups = $this->groupManager->getUserGroups($user);
+		foreach ($userGroups as $group) {
+			if (!in_array($group->getGID(), array_column($syncGroups, 'gid'))) {
+				if ($groupsWhitelistRegex && !preg_match($groupsWhitelistRegex, $group->getGID())) {
+					continue;
 				}
+				$group->removeUser($user);
 			}
+		}
 
-			foreach ($syncGroups as $group) {
-				// Creates a new group or return the exiting one.
-				if ($newGroup = $this->groupManager->createGroup($group->gid)) {
-					// Adds the user to the group. Does nothing if user is already in the group.
-					$newGroup->addUser($user);
+		foreach ($syncGroups as $group) {
+			// Creates a new group or return the exiting one.
+			if ($newGroup = $this->groupManager->createGroup($group->gid)) {
+				// Adds the user to the group. Does nothing if user is already in the group.
+				$newGroup->addUser($user);
 
-					if (isset($group->displayName)) {
-						$newGroup->setDisplayName($group->displayName);
-					}
+				if (isset($group->displayName)) {
+					$newGroup->setDisplayName($group->displayName);
 				}
 			}
 		}
+
+		return $syncGroups;
 	}
+
 
 	public function getGroupWhitelistRegex(int $providerId): string {
 		$regex = $this->providerService->getSetting($providerId, ProviderService::SETTING_GROUP_WHITELIST_REGEX, '');

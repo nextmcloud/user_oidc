@@ -11,41 +11,40 @@ namespace OCA\UserOIDC\Db;
 use OCP\AppFramework\Db\Entity;
 
 /**
- * @method string getIdentifier()
- * @method void setIdentifier(string $identifier)
- * @method string getClientId()
- * @method void setClientId(string $clientId)
- * @method string getClientSecret()
- * @method void setClientSecret(string $clientSecret)
- * @method string getBearerSecret()
- * @method void setBearerSecret(string $bearerSecret)
- * @method string getDiscoveryEndpoint()
- * @method void setDiscoveryEndpoint(string $discoveryEndpoint)
- * @method string getEndSessionEndpoint()
- * @method void setEndSessionEndpoint(string $endSessionEndpoint)
- * @method string getScope()
- * @method void setScope(string $scope)
+ * @method \string getIdentifier()
+ * @method \void setIdentifier(string $identifier)
+ * @method \string getClientId()
+ * @method \void setClientId(string $clientId)
+ * @method \string getClientSecret()
+ * @method \void setClientSecret(string $clientSecret)
+ * @method \string|\null getDiscoveryEndpoint()
+ * @method \void setDiscoveryEndpoint(?string $discoveryEndpoint)
+ * @method \string|\null getEndSessionEndpoint()
+ * @method \void setEndSessionEndpoint(?string $endSessionEndpoint)
+ * @method \string|\null getPostLogoutUri()
+ * @method \void setPostLogoutUri(?string $postLogoutUri)
+ * @method \string getScope()
+ * @method \void setScope(string $scope)
+ * @method \string getBearerSecret()
+ * @method \void setBearerSecret(string $bearerSecret)
  */
 class Provider extends Entity implements \JsonSerializable {
 
 	/** @var string */
 	protected $identifier;
-
 	/** @var string */
 	protected $clientId;
-
 	/** @var string */
 	protected $clientSecret;
-
 	/** @var string */
 	protected $bearerSecret;
 
-	/** @var string */
+	/** @var ?string */
 	protected $discoveryEndpoint;
-
-	/** @var string */
+	/** @var ?string */
 	protected $endSessionEndpoint;
-
+	/** @var string */
+	protected $postLogoutUri;
 	/** @var string */
 	protected $scope;
 
@@ -59,11 +58,12 @@ class Provider extends Entity implements \JsonSerializable {
 	#[\ReturnTypeWillChange]
 	public function jsonSerialize() {
 		return [
-			'id' => $this->id,
-			'identifier' => $this->identifier,
-			'clientId' => $this->clientId,
-			'discoveryEndpoint' => $this->discoveryEndpoint,
-			'endSessionEndpoint' => $this->endSessionEndpoint,
+			'id' => $this->getId(),
+			'identifier' => $this->getIdentifier(),
+			'clientId' => $this->getClientId(),
+			'discoveryEndpoint' => $this->getDiscoveryEndpoint(),
+			'endSessionEndpoint' => $this->getEndSessionEndpoint(),
+			'postLogoutUri' => $this->getPostLogoutUri(),
 			'scope' => trim($this->getScope()),
 		];
 	}

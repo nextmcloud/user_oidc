@@ -13,19 +13,23 @@ namespace OCA\UserOIDC\Controller;
 
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\ServerException;
-use OC\Authentication\Exceptions\InvalidTokenException;
 use OC\Authentication\Token\IProvider;
 use OC\User\Session as OC_UserSession;
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Db\SessionMapper;
 use OCA\UserOIDC\Event\TokenObtainedEvent;
+use OCA\UserOIDC\Helper\HttpClientHelper;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
+use OCA\UserOIDC\Service\OIDCService;
 use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\Service\ProvisioningService;
+use OCA\UserOIDC\Service\SettingsService;
 use OCA\UserOIDC\Service\TokenService;
+use OCA\UserOIDC\User\Backend;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
+use OCA\UserOIDC\Vendor\Firebase\JWT\Key;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\AppFramework\Http;
@@ -34,9 +38,11 @@ use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\Authentication\Exceptions\InvalidTokenException;
+use OCP\Authentication\Token\IToken;
 use OCP\DB\Exception;
 use OCP\EventDispatcher\IEventDispatcher;
-use OCP\Http\Client\IClientService;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -47,13 +53,16 @@ use OCP\IUserSession;
 use OCP\Security\ICrypto;
 use OCP\Security\ISecureRandom;
 use OCP\Session\Exceptions\SessionNotAvailableException;
+use OCP\User\Events\BeforeUserLoggedInEvent;
+use OCP\User\Events\UserLoggedInEvent;
 use Psr\Log\LoggerInterface;
+use UnexpectedValueException;
 
 class LoginController extends BaseOidcController {
 	private const STATE = 'oidc.state';
 	private const NONCE = 'oidc.nonce';
 	public const PROVIDERID = 'oidc.providerid';
-	private const REDIRECT_AFTER_LOGIN = 'oidc.redirect';
+	public const REDIRECT_AFTER_LOGIN = 'oidc.redirect';
 	private const ID_TOKEN = 'oidc.id_token';
 	private const CODE_VERIFIER = 'oidc.code_verifier';
 
@@ -63,15 +72,17 @@ class LoginController extends BaseOidcController {
 		private ProviderService $providerService,
 		private DiscoveryService $discoveryService,
 		private LdapService $ldapService,
+		private SettingsService $settingsService,
 		private ISecureRandom $random,
 		private ISession $session,
-		private IClientService $clientService,
+		private HttpClientHelper $clientService,
 		private IURLGenerator $urlGenerator,
 		private IUserSession $userSession,
 		private IUserManager $userManager,
 		private ITimeFactory $timeFactory,
 		private IEventDispatcher $eventDispatcher,
 		private IConfig $config,
+		private IAppConfig $appConfig,
 		private IProvider $authTokenProvider,
 		private SessionMapper $sessionMapper,
 		private ProvisioningService $provisioningService,
@@ -79,8 +90,9 @@ class LoginController extends BaseOidcController {
 		private LoggerInterface $logger,
 		private ICrypto $crypto,
 		private TokenService $tokenService,
+		private OidcService $oidcService,
 	) {
-		parent::__construct($request, $config);
+		parent::__construct($request, $config, $l10n);
 	}
 
 	/**
@@ -97,12 +109,10 @@ class LoginController extends BaseOidcController {
 	 */
 	private function buildProtocolErrorResponse(?bool $throttle = null): TemplateResponse {
 		$params = [
-			'errors' => [
-				['error' => $this->l10n->t('You must access Nextcloud with HTTPS to use OpenID Connect.')],
-			],
+			'message' => $this->l10n->t('You must access Nextcloud with HTTPS to use OpenID Connect.'),
 		];
 		$throttleMetadata = ['reason' => 'insecure connection'];
-		return $this->buildFailureTemplateResponse('', 'error', $params, Http::STATUS_NOT_FOUND, $throttleMetadata, $throttle);
+		return $this->buildFailureTemplateResponse($params, Http::STATUS_NOT_FOUND, $throttleMetadata, $throttle);
 	}
 
 	/**
@@ -134,12 +144,12 @@ class LoginController extends BaseOidcController {
 		if (!$this->isSecure()) {
 			return $this->buildProtocolErrorResponse();
 		}
-		$this->logger->debug('Initiating login for provider with id: ' . $providerId);
+		$this->logger->debug('Initiating login for provider with id: ' . strval($providerId));
 
 		try {
 			$provider = $this->providerMapper->getProvider($providerId);
 		} catch (DoesNotExistException|MultipleObjectsReturnedException $e) {
-			$message = $this->l10n->t('There is not such OpenID Connect provider.');
+			$message = $this->l10n->t('There is no such OpenID Connect provider.');
 			return $this->buildErrorTemplateResponse($message, Http::STATUS_NOT_FOUND, ['provider_not_found' => $providerId]);
 		}
 
@@ -189,10 +199,11 @@ class LoginController extends BaseOidcController {
 			// https://openid.net/specs/openid-connect-core-1_0.html#IndividualClaimsRequests
 			// ['essential' => true] means it's mandatory but it won't trigger an error if it's not there
 			// null means we want it
-			'id_token' => [],
-			'userinfo' => [],
+			'id_token' => new \stdClass(),
+			'userinfo' => new \stdClass(),
 		];
 
+		$resolveNestedClaims = $this->providerService->getSetting($providerId, ProviderService::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING, '0') === '1';
 		// by default: default claims are ENABLED
 		// default claims are historically for quota, email, displayName and groups
 		$isDefaultClaimsEnabled = !isset($oidcSystemConfig['enable_default_claims']) || $oidcSystemConfig['enable_default_claims'] !== false;
@@ -203,8 +214,8 @@ class LoginController extends BaseOidcController {
 			$quotaAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_QUOTA, 'quota');
 			$groupsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
 			foreach ([$emailAttribute, $displaynameAttribute, $quotaAttribute, $groupsAttribute] as $claim) {
-				$claims['id_token'][$claim] = null;
-				$claims['userinfo'][$claim] = null;
+				$claims['id_token']->{$claim} = null;
+				$claims['userinfo']->{$claim} = null;
 			}
 		} else {
 			// No default claim, we only set the claims if an attribute is mapped
@@ -212,27 +223,46 @@ class LoginController extends BaseOidcController {
 			$displaynameAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_DISPLAYNAME);
 			$quotaAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_QUOTA);
 			$groupsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GROUPS);
-			foreach ([$emailAttribute, $displaynameAttribute, $quotaAttribute, $groupsAttribute] as $claim) {
+			$rawClaims = [$emailAttribute, $displaynameAttribute, $quotaAttribute, $groupsAttribute];
+
+			if ($resolveNestedClaims) {
+				$claimSet = [];
+				foreach ($rawClaims as $claim) {
+					if ($claim !== '') {
+						$first = trim(explode('|', $claim)[0]);
+						$claimSet[$first] = true;
+					}
+				}
+				$rawClaims = array_keys($claimSet);
+			}
+
+			foreach ($rawClaims as $claim) {
 				if ($claim !== '') {
-					$claims['id_token'][$claim] = null;
-					$claims['userinfo'][$claim] = null;
+					$claims['id_token']->{$claim} = null;
+					$claims['userinfo']->{$claim} = null;
 				}
 			}
 		}
 
 		if ($uidAttribute !== 'sub') {
-			$claims['id_token'][$uidAttribute] = ['essential' => true];
-			$claims['userinfo'][$uidAttribute] = ['essential' => true];
+			$uidAttributeToRequest = $uidAttribute;
+			if ($resolveNestedClaims) {
+				$uidAttributeToRequest = trim(explode('|', $uidAttribute)[0]);
+			}
+			$claims['id_token']->{$uidAttributeToRequest} = ['essential' => true];
+			$claims['userinfo']->{$uidAttributeToRequest} = ['essential' => true];
 		}
 
 		$extraClaimsString = $this->providerService->getSetting($providerId, ProviderService::SETTING_EXTRA_CLAIMS, '');
 		if ($extraClaimsString) {
 			$extraClaims = explode(' ', $extraClaimsString);
 			foreach ($extraClaims as $extraClaim) {
-				$claims['id_token'][$extraClaim] = null;
-				$claims['userinfo'][$extraClaim] = null;
+				$claims['id_token']->{$extraClaim} = null;
+				$claims['userinfo']->{$extraClaim} = null;
 			}
 		}
+
+		$oidcConfig = $this->config->getSystemValue('user_oidc', []);
 
 		$data += [
 			'client_id' => $provider->getClientId(),
@@ -243,10 +273,17 @@ class LoginController extends BaseOidcController {
 			'state' => $state,
 			'nonce' => $nonce,
 		];
+
+		if (isset($oidcConfig['prompt']) && is_string($oidcConfig['prompt'])) {
+			$data['prompt'] = $oidcConfig['prompt'];
+		}
+
 		if ($isPkceEnabled) {
 			$data['code_challenge'] = $this->toCodeChallenge($code_verifier);
 			$data['code_challenge_method'] = 'S256';
 		}
+
+
 		$authorizationUrl = $this->discoveryService->buildAuthorizationUrl($discovery['authorization_endpoint'], $data);
 
 		$this->logger->debug('Redirecting user to: ' . $authorizationUrl);
@@ -284,14 +321,25 @@ class LoginController extends BaseOidcController {
 		$this->logger->debug('Code login with core: ' . $code . ' and state: ' . $state);
 
 		if ($error !== '') {
-			return new JSONResponse([
-				'error' => $error,
-				'error_description' => $error_description,
-			], Http::STATUS_FORBIDDEN);
+			$this->logger->warning('Code login error', ['error' => $error, 'error_description' => $error_description]);
+			if ($this->isDebugModeEnabled()) {
+				return new JSONResponse([
+					'error' => $error,
+					'error_description' => $error_description,
+				], Http::STATUS_FORBIDDEN);
+			}
+			$message = $this->l10n->t('The identity provider failed to authenticate the user.');
+			return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, [], false);
 		}
 
-		if ($this->session->get(self::STATE) !== $state) {
-			$this->logger->debug('state does not match');
+		$storedState = $this->session->get(self::STATE);
+
+		if ($storedState !== $state) {
+			$this->logger->warning('state does not match', [
+				'got' => $state,
+				'expected' => $storedState,
+				'state_exists_in_session' => $this->session->exists(self::STATE),
+			]);
 
 			$message = $this->l10n->t('The received state does not match the expected value.');
 			if ($this->isDebugModeEnabled()) {
@@ -299,7 +347,8 @@ class LoginController extends BaseOidcController {
 					'error' => 'invalid_state',
 					'error_description' => $message,
 					'got' => $state,
-					'expected' => $this->session->get(self::STATE),
+					'expected' => $storedState,
+					'state_exists_in_session' => $this->session->exists(self::STATE),
 				];
 				return new JSONResponse($responseData, Http::STATUS_FORBIDDEN);
 			}
@@ -325,7 +374,6 @@ class LoginController extends BaseOidcController {
 		$isPkceSupported = in_array('S256', $discovery['code_challenge_methods_supported'] ?? [], true);
 		$isPkceEnabled = $isPkceSupported && ($oidcSystemConfig['use_pkce'] ?? true);
 
-		$client = $this->clientService->newClient();
 		try {
 			$requestBody = [
 				'code' => $code,
@@ -337,16 +385,24 @@ class LoginController extends BaseOidcController {
 			}
 
 			$headers = [];
-			$tokenEndpointAuthMethod = 'client_secret_post';
-			// Use Basic only if client_secret_post is not available as supported by the endpoint
-			if (array_key_exists('token_endpoint_auth_methods_supported', $discovery) &&
-				is_array($discovery['token_endpoint_auth_methods_supported']) &&
-				in_array('client_secret_basic', $discovery['token_endpoint_auth_methods_supported']) &&
-				!in_array('client_secret_post', $discovery['token_endpoint_auth_methods_supported'])) {
+			// follow what is described in https://openid.net/specs/openid-connect-discovery-1_0.html
+			// about token_endpoint_auth_methods_supported: "If omitted, the default is client_secret_basic"
+			// Use client_secret_post if supported
+			// We still allow changing the default auth method in config.php
+			$tokenEndpointAuthMethod = $oidcSystemConfig['default_token_endpoint_auth_method'] ?? 'client_secret_basic';
+			// deal with invalid values
+			if (!in_array($tokenEndpointAuthMethod, ['client_secret_basic', 'client_secret_post'], true)) {
 				$tokenEndpointAuthMethod = 'client_secret_basic';
 			}
+			if (
+				array_key_exists('token_endpoint_auth_methods_supported', $discovery)
+				&& is_array($discovery['token_endpoint_auth_methods_supported'])
+				&& in_array('client_secret_post', $discovery['token_endpoint_auth_methods_supported'], true)
+			) {
+				$tokenEndpointAuthMethod = 'client_secret_post';
+			}
 
-			if ($tokenEndpointAuthMethod == 'client_secret_basic') {
+			if ($tokenEndpointAuthMethod === 'client_secret_basic') {
 				$headers = [
 					'Authorization' => 'Basic ' . base64_encode($provider->getClientId() . ':' . $providerClientSecret),
 					'Content-Type' => 'application/x-www-form-urlencoded',
@@ -357,12 +413,10 @@ class LoginController extends BaseOidcController {
 				$requestBody['client_secret'] = $providerClientSecret;
 			}
 
-			$result = $client->post(
+			$body = $this->clientService->post(
 				$discovery['token_endpoint'],
-				[
-					'body' => $requestBody,
-					'headers' => $headers,
-				]
+				$requestBody,
+				$headers
 			);
 		} catch (ClientException|ServerException $e) {
 			$response = $e->getResponse();
@@ -386,7 +440,7 @@ class LoginController extends BaseOidcController {
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
 		}
 
-		$data = json_decode($result->getBody(), true);
+		$data = json_decode($body, true);
 		$this->logger->debug('Received code response: ' . json_encode($data, JSON_THROW_ON_ERROR));
 		$this->eventDispatcher->dispatchTyped(new TokenObtainedEvent($data, $provider, $discovery));
 
@@ -394,7 +448,24 @@ class LoginController extends BaseOidcController {
 		$idTokenRaw = $data['id_token'];
 		$jwks = $this->discoveryService->obtainJWK($provider, $idTokenRaw);
 		JWT::$leeway = 60;
-		$idTokenPayload = JWT::decode($idTokenRaw, $jwks);
+		try {
+			$idTokenPayload = JWT::decode($idTokenRaw, $jwks);
+		} catch (UnexpectedValueException $e) {
+			$this->logger->debug('Failed to decode the JWT token, retrying with fresh JWK');
+			$jwks = $this->discoveryService->obtainJWK($provider, $idTokenRaw, false);
+			$idTokenPayload = JWT::decode($idTokenRaw, $jwks);
+		}
+
+		// default is false
+		if (isset($oidcSystemConfig['enrich_login_id_token_with_userinfo']) && $oidcSystemConfig['enrich_login_id_token_with_userinfo']) {
+			$userInfo = $this->oidcService->userInfo($provider, $data['access_token']);
+			foreach ($userInfo as $key => $value) {
+				// give priority to id token values, only use userinfo ones if missing in id token
+				if (!isset($idTokenPayload->{$key})) {
+					$idTokenPayload->{$key} = $value;
+				}
+			}
+		}
 
 		$this->logger->debug('Parsed the JWT payload: ' . json_encode($idTokenPayload, JSON_THROW_ON_ERROR));
 
@@ -447,7 +518,8 @@ class LoginController extends BaseOidcController {
 
 		// get user ID attribute
 		$uidAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_UID, 'sub');
-		$userId = $idTokenPayload->{$uidAttribute} ?? null;
+		$userId = $this->provisioningService->getClaimValue($idTokenPayload, $uidAttribute, $providerId);
+
 		if ($userId === null) {
 			$message = $this->l10n->t('Failed to provision the user');
 			return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'failed to provision user']);
@@ -466,29 +538,35 @@ class LoginController extends BaseOidcController {
 		}
 
 		$autoProvisionAllowed = (!isset($oidcSystemConfig['auto_provision']) || $oidcSystemConfig['auto_provision']);
+		$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
 
-		// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
-		// so new users will be directly available even if they were not synced before this login attempt
-		$this->userManager->search($userId);
-		$this->ldapService->syncUser($userId);
-		$userFromOtherBackend = $this->userManager->get($userId);
-		if ($userFromOtherBackend !== null && $this->ldapService->isLdapDeletedUser($userFromOtherBackend)) {
-			$userFromOtherBackend = null;
+		$shouldDoUserLookup = !$autoProvisionAllowed || ($softAutoProvisionAllowed && !$this->provisioningService->hasOidcUserProvisitioned($userId));
+		if ($shouldDoUserLookup && $this->ldapService->isLDAPEnabled()) {
+			// in case user is provisioned by user_ldap, userManager->search() triggers an ldap search which syncs the results
+			// so new users will be directly available even if they were not synced before this login attempt
+			$this->userManager->search($userId, 1, 0);
+			$this->ldapService->syncUser($userId);
+		}
+
+		$existingUser = $this->userManager->get($userId);
+		if ($existingUser !== null && $this->ldapService->isLdapDeletedUser($existingUser)) {
+			$existingUser = null;
 		}
 
 		if ($autoProvisionAllowed) {
-			$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
-			if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null) {
+			if (!$softAutoProvisionAllowed && $existingUser !== null && $existingUser->getBackendClassName() !== Application::APP_ID) {
 				// if soft auto-provisioning is disabled,
 				// we refuse login for a user that already exists in another backend
 				$message = $this->l10n->t('User conflict');
 				return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
 			}
 			// use potential user from other backend, create it in our backend if it does not exist
-			$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $userFromOtherBackend);
+			$provisioningResult = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $existingUser);
+			$user = $provisioningResult['user'];
+			$this->session->set('user_oidc.oidcUserData', $provisioningResult['userData']);
 		} else {
 			// when auto provision is disabled, we assume the user has been created by another user backend (or manually)
-			$user = $userFromOtherBackend;
+			$user = $existingUser;
 		}
 
 		if ($user === null) {
@@ -502,17 +580,36 @@ class LoginController extends BaseOidcController {
 
 		$this->userSession->setUser($user);
 		if ($this->userSession instanceof OC_UserSession) {
+			// TODO server should/could be refactored so we don't need to manually create the user session and dispatch the login-related events
+			// Warning! If GSS is used, it reacts to the BeforeUserLoggedInEvent and handles the redirection itself
+			// So nothing after dispatching this event will be executed
+			$this->eventDispatcher->dispatchTyped(new BeforeUserLoggedInEvent($user->getUID(), null, \OCP\Server::get(Backend::class)));
+
 			$this->userSession->completeLogin($user, ['loginName' => $user->getUID(), 'password' => '']);
 			$this->userSession->createSessionToken($this->request, $user->getUID(), $user->getUID());
 			$this->userSession->createRememberMeToken($user);
+
+			// prevent password confirmation
+			if (defined(IToken::class . '::SCOPE_SKIP_PASSWORD_VALIDATION')) {
+				$token = $this->authTokenProvider->getToken($this->session->getId());
+				$scope = $token->getScopeAsArray();
+				$scope[IToken::SCOPE_SKIP_PASSWORD_VALIDATION] = true;
+				$token->setScope($scope);
+				$this->authTokenProvider->updateToken($token);
+			}
+
+			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $user->getUID(), null, false));
 		}
 
-		// store all token information for potential token exchange requests
-		$tokenData = array_merge(
-			$data,
-			['provider_id' => $providerId],
-		);
-		$this->tokenService->storeToken($tokenData);
+		$storeLoginTokenEnabled = $this->appConfig->getValueString(Application::APP_ID, 'store_login_token', '0') === '1';
+		if ($storeLoginTokenEnabled) {
+			// store all token information for potential token exchange requests
+			$tokenData = array_merge(
+				$data,
+				['provider_id' => $providerId],
+			);
+			$this->tokenService->storeToken($tokenData);
+		}
 		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
@@ -521,12 +618,15 @@ class LoginController extends BaseOidcController {
 		// for backchannel logout
 		try {
 			$authToken = $this->authTokenProvider->getToken($this->session->getId());
-			$this->sessionMapper->createSession(
+			$this->sessionMapper->createOrUpdateSession(
 				$idTokenPayload->sid ?? 'fallback-sid',
 				$idTokenPayload->sub ?? 'fallback-sub',
 				$idTokenPayload->iss ?? 'fallback-iss',
 				$authToken->getId(),
-				$this->session->getId()
+				$this->session->getId(),
+				$idTokenRaw,
+				$user->getUID(),
+				$providerId,
 			);
 		} catch (InvalidTokenException $e) {
 			$this->logger->debug('Auth token not found after login');
@@ -550,6 +650,7 @@ class LoginController extends BaseOidcController {
 	/**
 	 * Endpoint called by NC to logout in the IdP before killing the current session
 	 *
+	 * @PublicPage
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
 	 * @UseSession
@@ -565,27 +666,52 @@ class LoginController extends BaseOidcController {
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
 		$targetUrl = $this->urlGenerator->getAbsoluteURL('/');
 		if (!isset($oidcSystemConfig['single_logout']) || $oidcSystemConfig['single_logout']) {
-			$providerId = $this->session->get(self::PROVIDERID);
+			$isFromGS = ($this->config->getSystemValueBool('gs.enabled', false)
+				&& $this->config->getSystemValueString('gss.mode', '') === 'master');
+			if ($isFromGS) {
+				// Request is from master GlobalScale: we get the provider ID from the JWT token provided by the slave
+				$jwt = $this->request->getParam('jwt', '');
+
+				try {
+					$key = $this->config->getSystemValueString('gss.jwt.key', '');
+					$decoded = (array)JWT::decode($jwt, new Key($key, 'HS256'));
+
+					$providerId = $decoded['oidcProviderId'] ?? null;
+				} catch (\Exception $e) {
+					$this->logger->debug('Failed to get the logout provider ID in the request from GSS', ['exception' => $e]);
+				}
+			} else {
+				$providerId = $this->session->get(self::PROVIDERID);
+				// if the provider is not found and we are in SSO mode, just use the one and only provider
+				if ($providerId === null && !$this->settingsService->getAllowMultipleUserBackEnds()) {
+					$providers = $this->providerMapper->getProviders();
+					if (count($providers) === 1) {
+						$providerId = $providers[0]->getId();
+					}
+				}
+			}
 			if ($providerId) {
 				try {
 					$provider = $this->providerMapper->getProvider((int)$providerId);
 				} catch (DoesNotExistException|MultipleObjectsReturnedException $e) {
-					$message = $this->l10n->t('There is not such OpenID Connect provider.');
+					$message = $this->l10n->t('There is no such OpenID Connect provider.');
 					return $this->buildErrorTemplateResponse($message, Http::STATUS_NOT_FOUND, ['provider_id' => $providerId]);
 				}
 
-				// Check if a custom end_session_endpoint is deposited otherwise use the default one provided by the openid-configuration
+				// Check if a custom end_session_endpoint is set in the provider otherwise use the default one provided by the openid-configuration
 				$discoveryData = $this->discoveryService->obtainDiscovery($provider);
 				$defaultEndSessionEndpoint = $discoveryData['end_session_endpoint'] ?? null;
 				$customEndSessionEndpoint = $provider->getEndSessionEndpoint();
 				$endSessionEndpoint = $customEndSessionEndpoint ?: $defaultEndSessionEndpoint;
 
 				if ($endSessionEndpoint) {
+					$targetUrl = $provider->getPostLogoutUri() ?: $this->urlGenerator->getAbsoluteURL('/');
 					$endSessionEndpoint .= '?post_logout_redirect_uri=' . $targetUrl;
 					$endSessionEndpoint .= '&client_id=' . $provider->getClientId();
 					$shouldSendIdToken = $this->providerService->getSetting(
 						$provider->getId(),
-						ProviderService::SETTING_SEND_ID_TOKEN_HINT, '0'
+						ProviderService::SETTING_SEND_ID_TOKEN_HINT,
+						'0'
 					) === '1';
 					$idToken = $this->session->get(self::ID_TOKEN);
 					if ($shouldSendIdToken && $idToken) {
@@ -666,59 +792,87 @@ class LoginController extends BaseOidcController {
 			);
 		}
 
-		// get the auth token ID associated with the logout token's sid attr
-		$sid = $logoutTokenPayload->sid;
-		try {
-			$oidcSession = $this->sessionMapper->findSessionBySid($sid);
-		} catch (DoesNotExistException $e) {
+		if (!isset($logoutTokenPayload->iss)) {
 			return $this->getBackchannelLogoutErrorResponse(
-				'invalid SID',
-				'The sid of the logout token was not found',
-				['session_sid_not_found' => $sid]
-			);
-		} catch (MultipleObjectsReturnedException $e) {
-			return $this->getBackchannelLogoutErrorResponse(
-				'invalid SID',
-				'The sid of the logout token was found multiple times',
-				['multiple_logout_tokens_found' => $sid]
-			);
-		}
-
-		$sub = $logoutTokenPayload->sub;
-		if ($oidcSession->getSub() !== $sub) {
-			return $this->getBackchannelLogoutErrorResponse(
-				'invalid SUB',
-				'The sub does not match the one from the login ID token',
-				['invalid_sub' => $sub]
+				'invalid iss',
+				'The logout token should contain an iss attribute',
+				['iss_should_be_set' => true]
 			);
 		}
 		$iss = $logoutTokenPayload->iss;
-		if ($oidcSession->getIss() !== $iss) {
+
+		if (!isset($logoutTokenPayload->sid) && !isset($logoutTokenPayload->sub)) {
 			return $this->getBackchannelLogoutErrorResponse(
-				'invalid ISS',
-				'The iss does not match the one from the login ID token',
-				['invalid_iss' => $iss]
+				'invalid sid+sub',
+				'The logout token should contain sid or sub or both',
+				['no_sid_no_sub' => true]
 			);
 		}
 
-		// i don't know why but the cast is necessary
-		$authTokenId = (int)$oidcSession->getAuthtokenId();
-		try {
-			$authToken = $this->authTokenProvider->getTokenById($authTokenId);
-			// we could also get the auth token by nc session ID
-			// $authToken = $this->authTokenProvider->getToken($oidcSession->getNcSessionId());
-			$userId = $authToken->getUID();
-			$this->authTokenProvider->invalidateTokenById($userId, $authToken->getId());
-		} catch (InvalidTokenException $e) {
-			return $this->getBackchannelLogoutErrorResponse(
-				'nc session not found',
-				'The authentication session was not found in Nextcloud',
-				['nc_auth_session_not_found' => $authTokenId]
-			);
+		$oidcSessionsToKill = [];
+
+		// if SID is set, we look for this specific session (with or without using the sub, depending on if the sub is set)
+		if (isset($logoutTokenPayload->sid)) {
+			$sid = $logoutTokenPayload->sid;
+			$sub = $logoutTokenPayload->sub ?? null;
+			try {
+				$oidcSession = $this->sessionMapper->findSessionBySid($sid, $sub, $iss);
+			} catch (DoesNotExistException $e) {
+				return $this->getBackchannelLogoutErrorResponse(
+					$sub === null ? 'invalid SID or ISS' : 'invalid SID, SUB or ISS',
+					$sub === null ? 'No session was found for this (sid,iss)' : 'No session was found for this (sid,sub,iss)',
+					['session_not_found' => $sid]
+				);
+			} catch (MultipleObjectsReturnedException $e) {
+				return $this->getBackchannelLogoutErrorResponse(
+					$sub === null ? 'invalid SID or ISS' : 'invalid SID, SUB or ISS',
+					$sub === null ? 'Multiple sessions were found with this (sid,iss)' : 'Multiple sessions were found with this (sid,sub,iss)',
+					['multiple_sessions_found' => $sid]
+				);
+			}
+			$oidcSessionsToKill[] = $oidcSession;
+		} else {
+			// here we know the sid is not set so the sub is set
+			$sub = $logoutTokenPayload->sub;
+			try {
+				$oidcSessionsToKill = $this->sessionMapper->findSessionsBySubAndIss($sub, $iss);
+			} catch (\OCP\Db\Exception $e) {
+				return $this->getBackchannelLogoutErrorResponse(
+					'error with sub+iss',
+					'Failed to retrieve session with sub+iss',
+					['sub_iss_error' => true]
+				);
+			}
+
+			if (empty($oidcSessionsToKill)) {
+				return $this->getBackchannelLogoutErrorResponse(
+					'nothing found with sub+iss',
+					'No session found with sub+iss',
+					['sub_iss_no_session_found' => true]
+				);
+			}
 		}
 
-		// cleanup
-		$this->sessionMapper->delete($oidcSession);
+		foreach ($oidcSessionsToKill as $oidcSession) {
+			// we know the IdP session is closed
+			// we need this to prevent requesting the end_session_endpoint when we catch the TokenInvalidatedEvent
+			$oidcSession->setIdpSessionClosed(1);
+			$this->sessionMapper->update($oidcSession);
+
+			$authTokenId = $oidcSession->getAuthtokenId();
+			try {
+				$authToken = $this->authTokenProvider->getTokenById($authTokenId);
+				// we could also get the auth token by nc session ID
+				// $authToken = $this->authTokenProvider->getToken($oidcSession->getNcSessionId());
+				$userId = $authToken->getUID();
+				$this->authTokenProvider->invalidateTokenById($userId, $authToken->getId());
+			} catch (InvalidTokenException $e) {
+				$this->logger->warning('[BackchannelLogout] Nextcloud session not found', ['authtoken_id' => $authTokenId]);
+			}
+
+			// cleanup
+			$this->sessionMapper->delete($oidcSession);
+		}
 
 		return new JSONResponse([], Http::STATUS_OK);
 	}
@@ -733,7 +887,9 @@ class LoginController extends BaseOidcController {
 	 * @return JSONResponse
 	 */
 	private function getBackchannelLogoutErrorResponse(
-		string $error, string $description, array $throttleMetadata = [],
+		string $error,
+		string $description,
+		array $throttleMetadata = [],
 	): JSONResponse {
 		$this->logger->debug('Backchannel logout error. ' . $error . ' ; ' . $description);
 		return new JSONResponse(

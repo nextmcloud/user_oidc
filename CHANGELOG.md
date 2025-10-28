@@ -8,6 +8,199 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 8.1.0 – 2025-10-15
+
+### Added
+
+- Add locale mapping @julien-nc [#1213](https://github.com/nextcloud/user_oidc/pull/1213)
+
+### Changed
+
+- Explain jwks cache invalidation in the README @julien-nc [#1225](https://github.com/nextcloud/user_oidc/pull/1225)
+- Add more debug log when a group does not match the whitelist regex @julien-nc [#1228](https://github.com/nextcloud/user_oidc/pull/1228)
+
+### Fixed
+
+- Handle missing KID in JWT token @solracsf [#1220](https://github.com/nextcloud/user_oidc/pull/1220)
+- Handle AppConfigTypeConflictException when getting/setting allow_multiple_user_backends @julien-nc [#1209](https://github.com/nextcloud/user_oidc/pull/1209)
+
+## 8.0.0 – 2025-09-22
+
+### Added
+
+- Add pronouns and birthdate mapping, factorize simple mapping attributes handling when provisioning @julien-nc [#1102](https://github.com/nextcloud/user_oidc/pull/1102)
+- Add optional provider-specific post_logout_uri setting, pass it as a GET param to the end_session_endpoint @julien-nc [#1120](https://github.com/nextcloud/user_oidc/pull/1120)
+- Add support for Nextcloud 33
+- Allow setting the default token endpoint auth method in config.php (if `token_endpoint_auth_methods_supported` is not set in the discovery payload) @julien-nc [#1199](https://github.com/nextcloud/user_oidc/pull/1199)
+
+### Changed
+
+- Adjust testing matrix for Nextcloud 32 on main @nickvergessen [#1196](https://github.com/nextcloud/user_oidc/pull/1196)
+- Drop support for Nextcloud 28, remove deprecated IConfig::setAppValue usages @julien-nc [#1200](https://github.com/nextcloud/user_oidc/pull/1200)
+- :warning: Use client_secret_basic as token endpoint auth by default, use client_secret_post if supported @julien-nc [#1199](https://github.com/nextcloud/user_oidc/pull/1199)
+
+## 7.4.0 – 2025-09-01
+
+### Added
+
+- React to a user session being revoked, end the IdP session @julien-nc [#1181](https://github.com/nextcloud/user_oidc/pull/1181)
+
+### Changed
+
+- Only check oidc login token if logged in via user_oidc @julien-nc [#1162](https://github.com/nextcloud/user_oidc/pull/1162)
+
+### Fixed
+
+- fix(backchannel-logout): handle those logout token cases: sid, sid+sub, sub. If only sub is set: kill all sessions for this sub @julien-nc [#1184](https://github.com/nextcloud/user_oidc/pull/1184)
+- fix(bearer-validation): fix mistake in soft auto provisioning logic, same as #1170 @julien-nc [#1192](https://github.com/nextcloud/user_oidc/pull/1192)
+- fix(backend-registration): use OC_User::useBackend before 32 @julien-nc [#1193](https://github.com/nextcloud/user_oidc/pull/1193)
+
+## 7.3.2 – 2025-08-22
+
+### Changed
+
+- Update dependencies, adjust GH actions, adjust tests to phpunit 10 @julien-nc [#1177](https://github.com/nextcloud/user_oidc/pull/1177)
+- Use OCP InvalidTokenException instead of the OC one @julien-nc [#1179](https://github.com/nextcloud/user_oidc/pull/1179)
+- Replace deprecated OC_User::useBackend with OCP\IUserManager::registerBackend @julien-nc [#1168](https://github.com/nextcloud/user_oidc/pull/1168)
+
+### Fixed
+
+- Only use the prompt param for the authorization and token endpoints if defined in NC config, drop 'consent' as the default @julien-nc [#1176](https://github.com/nextcloud/user_oidc/pull/1176)
+
+## 7.3.1 – 2025-08-07
+
+### Fixed
+
+- Fix broken soft-auto-provisioning @julien-nc @jonas2515 [#1170](https://github.com/nextcloud/user_oidc/pull/1170)
+
+## 7.3.0 – 2025-07-25
+
+### Added
+
+- Call userinfo on login to enrich the login ID token @julien-nc [#1041](https://github.com/nextcloud/user_oidc/pull/1041)
+- feat(settings): ask for a confirmation before deleting a provider @julien-nc [#1144](https://github.com/nextcloud/user_oidc/pull/1144)
+- Allow nested claim mapping for groups @andreblanke [#1149](https://github.com/nextcloud/user_oidc/pull/1149)
+- Optionally allow self-signed SSL verification and support for oidc prompt @elyerr [#1151](https://github.com/nextcloud/user_oidc/pull/1151)
+
+### Changed
+
+- chore(tests): Cleanup bootstrap.php to be forward-compatible @come-nc [#1122](https://github.com/nextcloud/user_oidc/pull/1122)
+- Use Psalm 6.7 @julien-nc [#1131](https://github.com/nextcloud/user_oidc/pull/1131)
+- Improve the NC error page when the IdP auth fails @julien-nc [#1138](https://github.com/nextcloud/user_oidc/pull/1138)
+- Migrate to vue 3, nc/vue 9, stick with webpack @julien-nc [#1141](https://github.com/nextcloud/user_oidc/pull/1141)
+- Use outlined icons @julien-nc [#1146](https://github.com/nextcloud/user_oidc/pull/1146)
+- Add warning log with more data when there is a code state mismatch @julien-nc [#1157](https://github.com/nextcloud/user_oidc/pull/1157)
+- Use custom error/403 template that includes a 'back to nextcloud' button @julien-nc [#1156](https://github.com/nextcloud/user_oidc/pull/1156)
+- Add debug logs including the session ID when setting and getting the login token @julien-nc [#1134](https://github.com/nextcloud/user_oidc/pull/1134)
+- Add debug logs when getting the JWKs @julien-nc [#1135](https://github.com/nextcloud/user_oidc/pull/1135)
+
+### Fixed
+
+- fix(gss): set the gss session data in the controller rather than in the service @julien-nc [#1123](https://github.com/nextcloud/user_oidc/pull/1123)
+- In single-logout, if the provider is not found and we are in SSO mode, use the one and only provider to make sure we logout in the IdP and avoid being immediately logged in NC again @julien-nc [#1155](https://github.com/nextcloud/user_oidc/pull/1155)
+
+## 7.2.0 – 2025-04-24
+
+### Added
+
+- Provider-specific setting to enable support for nested claims and fallback attribute mapping @dragonpil [#1103](https://github.com/nextcloud/user_oidc/pull/1103)
+
+### Changed
+
+- Allow requesting scopes when using ExchangedTokenRequestedEvent event @saw-jan [#1099](https://github.com/nextcloud/user_oidc/pull/1099)
+- Allow requesting scopes when using InternalTokenRequestedEvent event @saw-jan [#1098](https://github.com/nextcloud/user_oidc/pull/1098)
+- Make settings form footer sticky @julien-nc [#1107](https://github.com/nextcloud/user_oidc/pull/1107)
+
+### Fixed
+
+- Fix serialization of requested claims to avoid empty arrays resulting in JSON arrays instead of objects @julien-nc [#1093](https://github.com/nextcloud/user_oidc/pull/1093)
+- Fix grammar @rakekniven [#1104](https://github.com/nextcloud/user_oidc/pull/1104)
+
+## 7.1.0 – 2025-03-24
+
+### Changed
+
+- Clarify token request events @julien-nc [#1082](https://github.com/nextcloud/user_oidc/pull/1082)
+
+### Fixed
+
+- Fix translation issues @julien-nc [#1075](https://github.com/nextcloud/user_oidc/pull/1075)
+- Improve grammar @rakekniven [1083](https://github.com/nextcloud/user_oidc/pull/1083)
+
+## 7.0.0 – 2025-03-07
+
+### Added
+
+- Add ability to set a custom login button label @julien-nc [#1070](https://github.com/nextcloud/user_oidc/pull/1070)
+- Add support for bearer token validation and generation by the OIDC Identity Provider app via events @julien-nc [#1040](https://github.com/nextcloud/user_oidc/pull/1040)
+
+### Changed
+
+- Prepare for transifex sync @julien-nc [#1071](https://github.com/nextcloud/user_oidc/pull/1071)
+- Remove AZP check when validating a bearer ID token @julien-nc [#1039](https://github.com/nextcloud/user_oidc/pull/1039)
+- Bump min NC version to 28 to make sure we have `OCP\Authentication\Token\IToken` @julien-nc [#1061](https://github.com/nextcloud/user_oidc/pull/1061)
+
+### Fixed
+
+- Properly avoid password confirmation with user_oidc by adding the SCOPE_SKIP_PASSWORD_VALIDATION scope to the session tokens @julien-nc [#1061](https://github.com/nextcloud/user_oidc/pull/1061)
+- Fix scope for the role account property @julien-nc [#1069](https://github.com/nextcloud/user_oidc/pull/1069)
+
+## 6.3.1 – 2025-02-25
+
+### Fixed
+
+- Add missing group-provisioning options in upsert command @bjalbor [#1063](https://github.com/nextcloud/user_oidc/pull/1063)
+- Dispatch prelogin event before login event @ArtificialOwl [#1065](https://github.com/nextcloud/user_oidc/pull/1065)
+
+## 6.3.0 – 2025-02-17
+
+### Changed
+
+- Support NC 32 @nickvergessen [#1029](https://github.com/nextcloud/user_oidc/pull/1029)
+- Map the user language @julien-nc [#1046](https://github.com/nextcloud/user_oidc/pull/1046)
+- Adjustment for GSS @julien-nc [#1053](https://github.com/nextcloud/user_oidc/pull/1053)
+
+### Fixed
+
+- Replace broken jumpstart docs link @joshtrichards [#1045](https://github.com/nextcloud/user_oidc/pull/1045)
+- Fetch default privacy scopes and set properties appropriate @bjalbor [#1048](https://github.com/nextcloud/user_oidc/pull/1048)
+- Backchannel logout token may not contain "sub" @prigaux [#1049](https://github.com/nextcloud/user_oidc/pull/1049)
+- Fix '"kid" invalid, unable to lookup correct key' when keys are rotated @Adphi [#1035](https://github.com/nextcloud/user_oidc/pull/1035)
+- Fix(ProvisioningService): Handle `InvalidArgumentException` when updating account @susnux [#1058](https://github.com/nextcloud/user_oidc/pull/1058)
+
+## 6.2.1 – 2025-01-23
+
+### Fixed
+
+- Fix crash when storing a token without refresh_expires_in or refresh_token @julien-nc [#1025](https://github.com/nextcloud/user_oidc/pull/1025)
+- Disable token exchange mechanism by default @julien-nc [#1025](https://github.com/nextcloud/user_oidc/pull/1025)
+
+## 6.2.0 – 2025-01-20
+
+### Added
+
+- Support for Global Scale (globalsiteselector app) @julien-nc [#1011](https://github.com/nextcloud/user_oidc/pull/1011)
+- Add whitelist regular expression for group provisioning @bergerar [#884](https://github.com/nextcloud/user_oidc/pull/884)
+- Optionally restrict login to users matching a certain group @bergerar [#884](https://github.com/nextcloud/user_oidc/pull/884)
+- Token exchange mechanism for other apps @julien-nc [#974](https://github.com/nextcloud/user_oidc/pull/974)
+- Password confirmation in admin settings @janepie [#991](https://github.com/nextcloud/user_oidc/pull/991)
+- Add option to configure bearer provisioning via occ @janepie [#1003](https://github.com/nextcloud/user_oidc/pull/1003)
+- Add config value to make the email match optional when searching for a user or a display name @julien-nc [#1014](https://github.com/nextcloud/user_oidc/pull/1014)
+
+### Changed
+
+- Make the app Reuse compliant @AndyScherzinger [#975](https://github.com/nextcloud/user_oidc/pull/975)
+- Add support for comma-separated groups in group mapping attribute @julien-nc [#1006](https://github.com/nextcloud/user_oidc/pull/1006)
+
+### Fixed
+
+- Update cache when discovery endpoint is changed @janepie [#1002](https://github.com/nextcloud/user_oidc/pull/1002)
+- Set fallback redirect URL for login if already logged in @janepie [#1001](https://github.com/nextcloud/user_oidc/pull/1001)
+- Fix redirect URI when Nextcloud is accessed at a sub path @bdovaz [#990](https://github.com/nextcloud/user_oidc/pull/990)
+- Handle redirect URL containing a ':' @artonge [#1008](https://github.com/nextcloud/user_oidc/pull/1008)
+- Avoid slow queries in scenarios where we do not need a search @juliusknorr [#1019](https://github.com/nextcloud/user_oidc/pull/1019)
+- Adjust provisioning service to correctly update the display name on login @julien-nc [#979](https://github.com/nextcloud/user_oidc/pull/979)
+
 ## 6.1.2 – 2024-10-30
 
 ### Fixed
