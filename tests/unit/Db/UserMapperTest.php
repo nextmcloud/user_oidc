@@ -1,4 +1,5 @@
 <?php
+
 /**
  * SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -38,7 +39,7 @@ class UserMapperTest extends TestCase {
 		$this->db = $this->createMock(IDBConnection::class);
 		$this->userMapper = $this->getMockBuilder(UserMapper::class)
 			->setConstructorArgs([$this->db, $this->idService, $this->config])
-			->setMethods(['getUser', 'insert'])
+			->onlyMethods(['getUser', 'insert'])
 			->getMock();
 	}
 

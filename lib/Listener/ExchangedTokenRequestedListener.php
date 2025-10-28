@@ -37,8 +37,11 @@ class ExchangedTokenRequestedListener implements IEventListener {
 		}
 
 		$targetAudience = $event->getTargetAudience();
-		$this->logger->debug('[TokenExchange Listener] received request for audience: ' . $targetAudience);
-		$token = $this->tokenService->getExchangedToken($targetAudience);
+		$extraScopes = $event->getExtraScopes();
+		$this->logger->debug('[ExchangedTokenRequestedListener] received request for audience: ' . $targetAudience);
+
+		// classic token exchange with an external provider
+		$token = $this->tokenService->getExchangedToken($targetAudience, $extraScopes);
 		$event->setToken($token);
 	}
 }
