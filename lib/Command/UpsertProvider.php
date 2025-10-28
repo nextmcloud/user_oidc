@@ -59,6 +59,14 @@ class UpsertProvider extends Base {
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_EXTRA_CLAIMS,
 			'description' => 'Extra claims to request when getting tokens',
 		],
+		'mapping-language' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_LANGUAGE,
+			'description' => 'Attribute mapping of the account language',
+		],
+		'mapping-locale' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_LOCALE,
+			'description' => 'Attribute mapping of the account locale',
+		],
 		'mapping-website' => [
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_WEBSITE,
 			'description' => 'Attribute mapping of the website',
@@ -99,6 +107,14 @@ class UpsertProvider extends Base {
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_GENDER,
 			'description' => 'Attribute mapping of the gender',
 		],
+		'mapping-pronouns' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_PRONOUNS,
+			'description' => 'Attribute mapping of the pronouns',
+		],
+		'mapping-birthdate' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_BIRTHDATE,
+			'description' => 'Attribute mapping of the birth date',
+		],
 		'mapping-address' => [
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_ADDRESS,
 			'description' => 'Attribute mapping of the address',
@@ -127,9 +143,23 @@ class UpsertProvider extends Base {
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_GROUP_PROVISIONING,
 			'description' => 'Flag to toggle group provisioning. 1 to enable, 0 to disable (default)',
 		],
+		'group-whitelist-regex' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_GROUP_WHITELIST_REGEX,
+			'description' => 'Group whitelist regex',
+		],
+		'group-restrict-login-to-whitelist' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS,
+			'description' => 'Restrict login for users that are not in any whitelisted groups. 1 to enable, 0 to disable (default)',
+		],
 		'mapping-groups' => [
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_GROUPS,
 			'description' => 'Attribute mapping of the groups',
+		],
+		'resolve-nested-claims' => [
+			'shortcut' => null,
+			'mode' => InputOption::VALUE_REQUIRED,
+			'setting_key' => ProviderService::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING,
+			'description' => 'Enable support for dot-separated and fallback claim mappings (e.g. "a.b | c.d | e"). 1 to enable, 0 to disable (default)',
 		],
 	];
 
@@ -149,7 +179,8 @@ class UpsertProvider extends Base {
 			->addOption('clientid', 'c', InputOption::VALUE_REQUIRED, 'OpenID client identifier')
 			->addOption('clientsecret', 's', InputOption::VALUE_REQUIRED, 'OpenID client secret')
 			->addOption('discoveryuri', 'd', InputOption::VALUE_REQUIRED, 'OpenID discovery endpoint uri')
-			->addOption('endsessionendpointuri', 'e', InputOption::VALUE_OPTIONAL, 'OpenID end session endpoint uri')
+			->addOption('endsessionendpointuri', 'e', InputOption::VALUE_REQUIRED, 'OpenID end session endpoint uri')
+			->addOption('postlogouturi', 'p', InputOption::VALUE_REQUIRED, 'Post logout URI')
 			->addOption('scope', 'o', InputOption::VALUE_OPTIONAL, 'OpenID requested value scopes, if not set defaults to "openid email profile"');
 		foreach (self::EXTRA_OPTIONS as $name => $option) {
 			$this->addOption($name, $option['shortcut'], $option['mode'], $option['description']);
@@ -168,6 +199,7 @@ class UpsertProvider extends Base {
 		}
 		$discoveryuri = $input->getOption('discoveryuri');
 		$endsessionendpointuri = $input->getOption('endsessionendpointuri');
+		$postLogoutUri = $input->getOption('postlogouturi');
 		$scope = $input->getOption('scope');
 
 		if ($identifier === null) {
@@ -177,7 +209,7 @@ class UpsertProvider extends Base {
 		// check if any option for updating is provided
 		$updateOptions = array_filter($input->getOptions(), static function ($value, $option) {
 			return in_array($option, [
-				'identifier', 'clientid', 'clientsecret', 'discoveryuri', 'scope',
+				'identifier', 'clientid', 'clientsecret', 'discoveryuri', 'endsessionendpointuri', 'postlogouturi', 'scope',
 				...array_keys(self::EXTRA_OPTIONS),
 			]) && $value !== null;
 		}, ARRAY_FILTER_USE_BOTH);
@@ -217,7 +249,9 @@ class UpsertProvider extends Base {
 			$scope = $scope ?? 'openid email profile';
 		}
 		try {
-			$provider = $this->providerMapper->createOrUpdateProvider($identifier, $clientid, $clientsecret, $discoveryuri, $scope, $endsessionendpointuri);
+			$provider = $this->providerMapper->createOrUpdateProvider(
+				$identifier, $clientid, $clientsecret, $discoveryuri, $scope, $endsessionendpointuri, $postLogoutUri
+			);
 			// invalidate JWKS cache (even if it was just created)
 			$this->providerService->setSetting($provider->getId(), ProviderService::SETTING_JWKS_CACHE, '');
 			$this->providerService->setSetting($provider->getId(), ProviderService::SETTING_JWKS_CACHE_TIMESTAMP, '');

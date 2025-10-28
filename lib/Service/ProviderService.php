@@ -1,4 +1,5 @@
 <?php
+
 /**
  * SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -13,7 +14,7 @@ use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\Provider;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\IConfig;
+use OCP\IAppConfig;
 
 class ProviderService {
 	public const SETTING_CHECK_BEARER = 'checkBearer';
@@ -26,6 +27,8 @@ class ProviderService {
 	public const SETTING_MAPPING_EMAIL = 'mappingEmail';
 	public const SETTING_MAPPING_QUOTA = 'mappingQuota';
 	public const SETTING_MAPPING_GROUPS = 'mappingGroups';
+	public const SETTING_MAPPING_LANGUAGE = 'mappingLanguage';
+	public const SETTING_MAPPING_LOCALE = 'mappingLocale';
 	public const SETTING_MAPPING_ADDRESS = 'mappingAddress';
 	public const SETTING_MAPPING_STREETADDRESS = 'mappingStreetaddress';
 	public const SETTING_MAPPING_POSTALCODE = 'mappingPostalcode';
@@ -42,6 +45,8 @@ class ProviderService {
 	public const SETTING_MAPPING_BIOGRAPHY = 'mappingBiography';
 	public const SETTING_MAPPING_PHONE = 'mappingPhonenumber';
 	public const SETTING_MAPPING_GENDER = 'mappingGender';
+	public const SETTING_MAPPING_PRONOUNS = 'mappingPronouns';
+	public const SETTING_MAPPING_BIRTHDATE = 'mappingBirthdate';
 	public const SETTING_EXTRA_CLAIMS = 'extraClaims';
 	public const SETTING_JWKS_CACHE = 'jwksCache';
 	public const SETTING_JWKS_CACHE_TIMESTAMP = 'jwksCacheTimestamp';
@@ -49,6 +54,7 @@ class ProviderService {
 	public const SETTING_GROUP_PROVISIONING = 'groupProvisioning';
 	public const SETTING_GROUP_WHITELIST_REGEX = 'groupWhitelistRegex';
 	public const SETTING_RESTRICT_LOGIN_TO_GROUPS = 'restrictLoginToGroups';
+	public const SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING = 'nestedAndFallbackClaims';
 
 	public const BOOLEAN_SETTINGS_DEFAULT_VALUES = [
 		self::SETTING_GROUP_PROVISIONING => false,
@@ -58,10 +64,11 @@ class ProviderService {
 		self::SETTING_CHECK_BEARER => false,
 		self::SETTING_SEND_ID_TOKEN_HINT => false,
 		self::SETTING_RESTRICT_LOGIN_TO_GROUPS => false,
+		self::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING => false,
 	];
 
 	public function __construct(
-		private IConfig $config,
+		private IAppConfig $appConfig,
 		private ProviderMapper $providerMapper,
 	) {
 	}
@@ -111,18 +118,18 @@ class ProviderService {
 
 	public function deleteSettings(int $providerId): void {
 		foreach ($this->getSupportedSettings() as $setting) {
-			$this->config->deleteAppValue(Application::APP_ID, $this->getSettingsKey($providerId, $setting));
+			$this->appConfig->deleteKey(Application::APP_ID, $this->getSettingsKey($providerId, $setting));
 		}
-		$this->config->deleteAppValue(Application::APP_ID, $this->getSettingsKey($providerId, self::SETTING_JWKS_CACHE));
-		$this->config->deleteAppValue(Application::APP_ID, $this->getSettingsKey($providerId, self::SETTING_JWKS_CACHE_TIMESTAMP));
+		$this->appConfig->deleteKey(Application::APP_ID, $this->getSettingsKey($providerId, self::SETTING_JWKS_CACHE));
+		$this->appConfig->deleteKey(Application::APP_ID, $this->getSettingsKey($providerId, self::SETTING_JWKS_CACHE_TIMESTAMP));
 	}
 
 	public function setSetting(int $providerId, string $key, string $value): void {
-		$this->config->setAppValue(Application::APP_ID, $this->getSettingsKey($providerId, $key), $value);
+		$this->appConfig->setValueString(Application::APP_ID, $this->getSettingsKey($providerId, $key), $value);
 	}
 
 	public function getSetting(int $providerId, string $key, string $default = ''): string {
-		$value = $this->config->getAppValue(Application::APP_ID, $this->getSettingsKey($providerId, $key), '');
+		$value = $this->appConfig->getValueString(Application::APP_ID, $this->getSettingsKey($providerId, $key), '');
 		if ($value === '') {
 			return $default;
 		}
@@ -130,7 +137,7 @@ class ProviderService {
 	}
 
 	private function getSettingsKey(int $providerId, string $key): string {
-		return 'provider-' . $providerId . '-' . $key;
+		return 'provider-' . strval($providerId) . '-' . $key;
 	}
 
 	private function getSupportedSettings(): array {
@@ -140,6 +147,8 @@ class ProviderService {
 			self::SETTING_MAPPING_QUOTA,
 			self::SETTING_MAPPING_UID,
 			self::SETTING_MAPPING_GROUPS,
+			self::SETTING_MAPPING_LANGUAGE,
+			self::SETTING_MAPPING_LOCALE,
 			self::SETTING_MAPPING_ADDRESS,
 			self::SETTING_MAPPING_STREETADDRESS,
 			self::SETTING_MAPPING_POSTALCODE,
@@ -156,6 +165,8 @@ class ProviderService {
 			self::SETTING_MAPPING_BIOGRAPHY,
 			self::SETTING_MAPPING_PHONE,
 			self::SETTING_MAPPING_GENDER,
+			self::SETTING_MAPPING_PRONOUNS,
+			self::SETTING_MAPPING_BIRTHDATE,
 			self::SETTING_UNIQUE_UID,
 			self::SETTING_CHECK_BEARER,
 			self::SETTING_SEND_ID_TOKEN_HINT,
@@ -165,6 +176,7 @@ class ProviderService {
 			self::SETTING_GROUP_PROVISIONING,
 			self::SETTING_GROUP_WHITELIST_REGEX,
 			self::SETTING_RESTRICT_LOGIN_TO_GROUPS,
+			self::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING,
 		];
 	}
 

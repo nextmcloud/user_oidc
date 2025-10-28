@@ -1,7 +1,7 @@
 {
 	"name": "user_oidc",
 	"description": "OIDC connect user backend for Nextcloud",
-	"version": "6.3.0-dev.0",
+	"version": "7.6.0-dev.0",
 	"author": "Roeland Jago Douma <roeland@famdouma.nl>",
 	"repository": {
 		"url": "https://github.com/nextcloud/user_oidc",
@@ -23,14 +23,14 @@
 	},
 	"dependencies": {
 		"@nextcloud/axios": "^2.5.1",
-		"@nextcloud/dialogs": "^5.3.7",
+		"@nextcloud/dialogs": "^7.1.0",
 		"@nextcloud/initial-state": "^2.2.0",
-		"@nextcloud/logger": "^2.7.0",
-		"@nextcloud/password-confirmation": "^5.3.1",
+		"@nextcloud/logger": "^3.0.2",
+		"@nextcloud/password-confirmation": "^6.0.1",
 		"@nextcloud/router": "^3.0.1",
-		"@nextcloud/vue": "^8.22.0",
+		"@nextcloud/vue": "^9.1.0",
 		"jstz": "^2.1.1",
-		"vue": "^2.7.14",
+		"vue": "^3.5.17",
 		"vue-material-design-icons": "^5.3.1"
 	},
 	"browserslist": [
@@ -42,10 +42,10 @@
 	},
 	"devDependencies": {
 		"@nextcloud/babel-config": "^1.2.0",
-		"@nextcloud/browserslist-config": "^3.0.1",
-		"@nextcloud/eslint-config": "^8.4.1",
-		"@nextcloud/stylelint-config": "^2.4.0",
-		"@nextcloud/webpack-vue-config": "^6.2.0",
+		"@nextcloud/browserslist-config": "^3.1.1",
+		"@nextcloud/eslint-config": "^8.4.2",
+		"@nextcloud/stylelint-config": "^3.1.1",
+		"@nextcloud/webpack-vue-config": "^6.3.2",
 		"eslint-webpack-plugin": "^4.2.0",
 		"stylelint-webpack-plugin": "^5.0.1",
 		"vue-template-compiler": "^2.7.16"

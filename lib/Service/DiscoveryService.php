@@ -1,4 +1,5 @@
 <?php
+
 /**
  * SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -9,9 +10,9 @@ declare(strict_types=1);
 namespace OCA\UserOIDC\Service;
 
 use OCA\UserOIDC\Db\Provider;
+use OCA\UserOIDC\Helper\HttpClientHelper;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWK;
 use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
-use OCP\Http\Client\IClientService;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use Psr\Log\LoggerInterface;
@@ -31,14 +32,15 @@ class DiscoveryService {
 		'RS512' => 'RSA',
 		'ES256' => 'EC',
 		'ES384' => 'EC',
-		'ES512' => 'EC'
+		'ES512' => 'EC',
+		'EdDSA' => 'EdDSA'
 	];
 
 	private ICache $cache;
 
 	public function __construct(
 		private LoggerInterface $logger,
-		private IClientService $clientService,
+		private HttpClientHelper $clientService,
 		private ProviderService $providerService,
 		ICacheFactory $cacheFactory,
 	) {
@@ -52,9 +54,7 @@ class DiscoveryService {
 			$url = $provider->getDiscoveryEndpoint();
 			$this->logger->debug('Obtaining discovery endpoint: ' . $url);
 
-			$client = $this->clientService->newClient();
-			$response = $client->get($url);
-			$cachedDiscovery = $response->getBody();
+			$cachedDiscovery = $this->clientService->get($url);
 
 			$this->cache->set($cacheKey, $cachedDiscovery, self::INVALIDATE_DISCOVERY_CACHE_AFTER_SECONDS);
 		}
@@ -65,25 +65,29 @@ class DiscoveryService {
 	/**
 	 * @param Provider $provider
 	 * @param string $tokenToDecode This is used to potentially fix the missing alg in
+	 * @param bool $useCache
 	 * @return array
 	 * @throws \JsonException
 	 */
-	public function obtainJWK(Provider $provider, string $tokenToDecode): array {
+	public function obtainJWK(Provider $provider, string $tokenToDecode, bool $useCache = true): array {
 		$lastJwksRefresh = $this->providerService->getSetting($provider->getId(), ProviderService::SETTING_JWKS_CACHE_TIMESTAMP);
-		if ($lastJwksRefresh !== '' && (int)$lastJwksRefresh > time() - self::INVALIDATE_JWKS_CACHE_AFTER_SECONDS) {
+		if ($lastJwksRefresh !== '' && $useCache && (int)$lastJwksRefresh > time() - self::INVALIDATE_JWKS_CACHE_AFTER_SECONDS) {
 			$rawJwks = $this->providerService->getSetting($provider->getId(), ProviderService::SETTING_JWKS_CACHE);
 			$rawJwks = json_decode($rawJwks, true);
+			$this->logger->debug('[obtainJWK] jwks cache content', ['jwks_cache' => $rawJwks]);
 		} else {
 			$discovery = $this->obtainDiscovery($provider);
-			$client = $this->clientService->newClient();
-			$responseBody = $client->get($discovery['jwks_uri'])->getBody();
+			$responseBody = $this->clientService->get($discovery['jwks_uri']);
 			$rawJwks = json_decode($responseBody, true);
+			$this->logger->debug('[obtainJWK] getting fresh jwks', ['jwks' => $rawJwks]);
 			// cache jwks
 			$this->providerService->setSetting($provider->getId(), ProviderService::SETTING_JWKS_CACHE, $responseBody);
+			$this->logger->debug('[obtainJWK] setting cache', ['jwks_cache' => $responseBody]);
 			$this->providerService->setSetting($provider->getId(), ProviderService::SETTING_JWKS_CACHE_TIMESTAMP, strval(time()));
 		}
 
 		$fixedJwks = $this->fixJwksAlg($rawJwks, $tokenToDecode);
+		$this->logger->debug('[obtainJWK] fixed jwks', ['fixed_jwks' => $fixedJwks]);
 		$jwks = JWK::parseKeySet($fixedJwks, 'RS256');
 		$this->logger->debug('Parsed the jwks');
 		return $jwks;
@@ -97,10 +101,10 @@ class DiscoveryService {
 	public function buildAuthorizationUrl(string $authorizationEndpoint, array $extraGetParameters = []): string {
 		$parsedUrl = parse_url($authorizationEndpoint);
 
-		$urlWithoutParams =
-			(isset($parsedUrl['scheme']) ? $parsedUrl['scheme'] . '://' : '')
+		$urlWithoutParams
+			= (isset($parsedUrl['scheme']) ? $parsedUrl['scheme'] . '://' : '')
 			. ($parsedUrl['host'] ?? '')
-			. (isset($parsedUrl['port']) ? ':' . $parsedUrl['port'] : '')
+			. (isset($parsedUrl['port']) ? ':' . strval($parsedUrl['port']) : '')
 			. ($parsedUrl['path'] ?? '');
 
 		$queryParams = $extraGetParameters;
@@ -118,35 +122,69 @@ class DiscoveryService {
 	/**
 	 * Inspired by https://github.com/snake/moodle/compare/880462a1685...MDL-77077-master
 	 *
-	 * @param array $jwks
-	 * @param string $jwt
-	 * @return array
-	 * @throws \Exception
+	 * @param array $jwks The JSON Web Key Set
+	 * @param string $jwt The JWT token
+	 * @return array The modified JWKS
+	 * @throws \RuntimeException if no matching key is found or algorithm is unsupported
 	 */
 	private function fixJwksAlg(array $jwks, string $jwt): array {
-		$jwtParts = explode('.', $jwt);
-		$jwtHeader = json_decode(JWT::urlsafeB64Decode($jwtParts[0]), true);
-		if (!isset($jwtHeader['kid'])) {
-			throw new \Exception('Error: kid must be provided in JWT header.');
+		$jwtParts = explode('.', $jwt, 3);
+		$header = json_decode(JWT::urlsafeB64Decode($jwtParts[0]), true);
+		$kid = $header['kid'] ?? null;
+		$alg = $header['alg'] ?? null;
+
+		$expectedKty = self::SUPPORTED_JWK_ALGS[$alg] ?? null;
+		if ($expectedKty === null) {
+			throw new \RuntimeException('Unsupported JWT alg: ' . ($alg ?? 'unknown'));
 		}
 
-		foreach ($jwks['keys'] as $index => $key) {
-			// Only fix the key being referred to in the JWT.
-			if ($jwtHeader['kid'] != $key['kid']) {
+		$keys = $jwks['keys'] ?? null;
+		if (!is_array($keys)) {
+			throw new \RuntimeException('Invalid JWKS: missing "keys" array');
+		}
+
+		$matchingIndex = null;
+
+		foreach ($keys as $index => $key) {
+			$keyKty = $key['kty'] ?? null;
+			$keyUse = $key['use'] ?? null;
+
+			// Skip keys with incompatible type
+			if ($keyKty !== $expectedKty) {
 				continue;
 			}
 
-			// Only fix the key if the alg is missing.
-			if (!empty($key['alg'])) {
+			// Skip keys not intended for signature
+			if ($keyUse !== null && $keyUse !== 'sig') {
 				continue;
 			}
 
-			// The header alg must match the key type (family) specified in the JWK's kty.
-			if (!isset(self::SUPPORTED_JWK_ALGS[$jwtHeader['alg']]) || self::SUPPORTED_JWK_ALGS[$jwtHeader['alg']] !== $key['kty']) {
-				throw new \Exception('Error: Alg specified in the JWT header is incompatible with the JWK key type');
+			// If JWT has a kid, match strictly
+			if ($kid !== null) {
+				if (($key['kid'] ?? null) !== $kid) {
+					continue;
+				}
+				$matchingIndex = $index;
+				break;
 			}
 
-			$jwks['keys'][$index]['alg'] = $jwtHeader['alg'];
+			// If no kid, select the first compatible key
+			if ($matchingIndex === null) {
+				$matchingIndex = $index;
+			}
+		}
+
+		if ($matchingIndex === null) {
+			throw new \RuntimeException(sprintf(
+				'No matching key found in JWKS (alg=%s, kid=%s)',
+				$alg ?? 'unknown',
+				$kid ?? 'none'
+			));
+		}
+
+		// Set 'alg' field if missing
+		if (empty($jwks['keys'][$matchingIndex]['alg'])) {
+			$jwks['keys'][$matchingIndex]['alg'] = $alg;
 		}
 
 		return $jwks;

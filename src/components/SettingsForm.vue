@@ -53,6 +53,15 @@
 				placeholder="(Optional)">
 		</p>
 		<p>
+			<label for="oidc-post-logout-uri">{{ t('user_oidc', 'Post logout URI') }}</label>
+			<input id="oidc-post-logout-uri"
+				v-model="localProvider.postLogoutUri"
+				class="italic-placeholder"
+				type="text"
+				maxlength="255"
+				placeholder="(Optional)">
+		</p>
+		<p>
 			<label for="oidc-scope">{{ t('user_oidc', 'Scope') }}</label>
 			<input id="oidc-scope"
 				v-model="localProvider.scope"
@@ -67,6 +76,11 @@
 				placeholder="claim1 claim2 claim3">
 		</p>
 		<h3><b>{{ t('user_oidc', 'Attribute mapping') }}</b></h3>
+		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.nestedAndFallbackClaims"
+			wrapper-element="div">
+			{{ t('user_oidc', 'Enable nested and fallback claim mappings (like "{example}")', { example: 'custom.nickname | profile.name | name' }) }}
+		</NcCheckboxRadioSwitch>
 		<p>
 			<label for="mapping-uid">{{ t('user_oidc', 'User ID mapping') }}</label>
 			<input id="mapping-uid"
@@ -91,7 +105,7 @@
 		</p>
 
 		<h3>
-			<NcButton type="secondary" @click="toggleProfileAttributes">
+			<NcButton variant="secondary" @click="toggleProfileAttributes">
 				<template #icon>
 					<ChevronRightIcon v-if="!showProfileAttributes" :size="20" />
 					<ChevronDownIcon v-else :size="20" />
@@ -107,6 +121,20 @@
 					v-model="localProvider.settings.mappingDisplayName"
 					type="text"
 					placeholder="name">
+			</p>
+			<p>
+				<label for="mapping-birthdate">{{ t('user_oidc', 'Birth date mapping') }}</label>
+				<input id="mapping-birthdate"
+					v-model="localProvider.settings.mappingBirthdate"
+					type="text"
+					placeholder="birthdate">
+			</p>
+			<p>
+				<label for="mapping-pronouns">{{ t('user_oidc', 'Pronouns mapping') }}</label>
+				<input id="mapping-pronouns"
+					v-model="localProvider.settings.mappingPronouns"
+					type="text"
+					placeholder="pronouns">
 			</p>
 			<p>
 				<label for="mapping-gender">{{ t('user_oidc', 'Gender mapping') }}</label>
@@ -128,6 +156,20 @@
 					v-model="localProvider.settings.mappingPhonenumber"
 					type="text"
 					placeholder="phone_number">
+			</p>
+			<p>
+				<label for="mapping-language">{{ t('user_oidc', 'Language mapping') }}</label>
+				<input id="mapping-language"
+					v-model="localProvider.settings.mappingLanguage"
+					type="text"
+					placeholder="language">
+			</p>
+			<p>
+				<label for="mapping-locale">{{ t('user_oidc', 'Locale mapping') }}</label>
+				<input id="mapping-locale"
+					v-model="localProvider.settings.mappingLocale"
+					type="text"
+					placeholder="locale">
 			</p>
 			<p>
 				<label for="mapping-role">{{ t('user_oidc', 'Role/Title mapping') }}</label>
@@ -200,7 +242,7 @@
 					placeholder="biography">
 			</p>
 			<p>
-				<label for="mapping-twitter">{{ t('user_oidc', 'Twitter mapping') }}</label>
+				<label for="mapping-twitter">{{ t('user_oidc', 'X (formerly Twitter) mapping') }}</label>
 				<input id="mapping-twitter"
 					v-model="localProvider.settings.mappingTwitter"
 					type="text"
@@ -222,23 +264,29 @@
 			</p>
 		</div>
 		<h3><b>{{ t('user_oidc', 'Authentication and Access Control Settings') }}</b></h3>
-		<NcCheckboxRadioSwitch :checked.sync="localProvider.settings.uniqueUid" wrapper-element="div">
-			{{ t('user_oidc', 'Use unique user id') }}
+		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.uniqueUid"
+			wrapper-element="div">
+			{{ t('user_oidc', 'Use unique user ID') }}
 		</NcCheckboxRadioSwitch>
 		<p class="settings-hint">
-			{{ t('user_oidc', 'By default every user will get a unique userid that is a hashed value of the provider and user id. This can be turned off but uniqueness of users accross multiple user backends and providers is no longer preserved then.') }}
+			{{ t('user_oidc', 'By default every user will get a unique user ID that is a hashed value of the provider and user ID. This can be turned off but uniqueness of users accross multiple user backends and providers is no longer preserved then.') }}
 		</p>
-		<NcCheckboxRadioSwitch :checked.sync="localProvider.settings.providerBasedId" wrapper-element="div">
-			{{ t('user_oidc', 'Use provider identifier as prefix for ids') }}
+		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.providerBasedId"
+			wrapper-element="div">
+			{{ t('user_oidc', 'Use provider identifier as prefix for IDs') }}
 		</NcCheckboxRadioSwitch>
 		<p class="settings-hint">
-			{{ t('user_oidc', 'To keep ids in plain text, but also preserve uniqueness of them across multiple providers, a prefix with the providers name is added.') }}
+			{{ t('user_oidc', 'To keep IDs in plain text, but also preserve uniqueness of them across multiple providers, a prefix with the providers name is added.') }}
 		</p>
-		<NcCheckboxRadioSwitch :checked.sync="localProvider.settings.groupProvisioning" wrapper-element="div">
+		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.groupProvisioning"
+			wrapper-element="div">
 			{{ t('user_oidc', 'Use group provisioning.') }}
 		</NcCheckboxRadioSwitch>
 		<p class="settings-hint">
-			{{ t('user_oidc', 'This will create and update the users groups depending on the groups claim in the id token. The Format of the groups claim value should be [{gid: "1", displayName: "group1"}, ...] or ["group1", "group2", ...] or "group1,group2"') }}
+			{{ t('user_oidc', 'This will create and update the users groups depending on the groups claim in the ID token. The Format of the groups claim value should be {sample1}, {sample2} or {sample3}', { sample1: '[{gid: "1", displayName: "group1"}, …]', sample2: '["group1", "group2", …]', sample3: '"group1,group2"' }, undefined, { escape: false }) }}
 		</p>
 		<p>
 			<label for="group-whitelist-regex">{{ t('user_oidc', 'Group whitelist regex') }}</label>
@@ -249,35 +297,44 @@
 		<p class="settings-hint">
 			{{ t('user_oidc', 'Only groups matching the whitelist regex will be created, updated and deleted by the group claim. For example: {regex} allows all groups which ID starts with {substr}', { regex: '/^blue/', substr: 'blue' }) }}
 		</p>
-		<NcCheckboxRadioSwitch :checked.sync="localProvider.settings.restrictLoginToGroups" wrapper-element="div">
+		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.restrictLoginToGroups"
+			wrapper-element="div">
 			{{ t('user_oidc', 'Restrict login for users that are not in any whitelisted group') }}
 		</NcCheckboxRadioSwitch>
 		<p class="settings-hint">
 			{{ t('user_oidc', 'Users that are not part of any whitelisted group are not created and can not login') }}
 		</p>
-		<NcCheckboxRadioSwitch :checked.sync="localProvider.settings.checkBearer" wrapper-element="div">
-			{{ t('user_oidc', 'Check Bearer token on API and WebDav requests') }}
+		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.checkBearer"
+			wrapper-element="div">
+			{{ t('user_oidc', 'Check Bearer token on API and WebDAV requests') }}
 		</NcCheckboxRadioSwitch>
 		<p class="settings-hint">
-			{{ t('user_oidc', 'Do you want to allow API calls and WebDav request that are authenticated with an OIDC ID token or access token?') }}
+			{{ t('user_oidc', 'Do you want to allow API calls and WebDAV requests that are authenticated with an OIDC ID token or access token?') }}
 		</p>
-		<NcCheckboxRadioSwitch :checked.sync="localProvider.settings.bearerProvisioning" wrapper-element="div" :disabled="!localProvider.settings.checkBearer">
-			{{ t('user_oidc', 'Auto provision user when accessing API and WebDav with Bearer token') }}
+		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.bearerProvisioning"
+			wrapper-element="div"
+			:disabled="!localProvider.settings.checkBearer">
+			{{ t('user_oidc', 'Auto provision user when accessing API and WebDAV with Bearer token') }}
 		</NcCheckboxRadioSwitch>
 		<p class="settings-hint">
-			{{ t('user_oidc', 'This automatically provisions the user, when sending API and WebDav Requests with a Bearer token. Auto provisioning and Bearer token check have to be activated for this to work.') }}
+			{{ t('user_oidc', 'This automatically provisions the user, when sending API and WebDAV requests with a Bearer token. Auto provisioning and Bearer token check have to be activated for this to work.') }}
 		</p>
-		<NcCheckboxRadioSwitch :checked.sync="localProvider.settings.sendIdTokenHint" wrapper-element="div">
+		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.sendIdTokenHint"
+			wrapper-element="div">
 			{{ t('user_oidc', 'Send ID token hint on logout') }}
 		</NcCheckboxRadioSwitch>
 		<p class="settings-hint">
 			{{ t('user_oidc', 'Should the ID token be included as the id_token_hint GET parameter in the OpenID logout URL? Users are redirected to this URL after logging out of Nextcloud. Enabling this setting exposes the OIDC ID token to the user agent, which may not be necessary depending on the OIDC provider.') }}
 		</p>
 		<div class="provider-edit--footer">
-			<NcButton @click="$emit('cancel')">
+			<NcButton @click="$emit('cancel-form')">
 				{{ t('user_oidc', 'Cancel') }}
 			</NcButton>
-			<NcButton type="primary" @click="$emit('submit', localProvider)">
+			<NcButton variant="primary" @click="$emit('submit', localProvider)">
 				<template #icon>
 					<CheckIcon :size="20" />
 				</template>
@@ -293,8 +350,8 @@ import CheckIcon from 'vue-material-design-icons/Check.vue'
 import ChevronRightIcon from 'vue-material-design-icons/ChevronRight.vue'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 
-import NcCheckboxRadioSwitch from '@nextcloud/vue/dist/Components/NcCheckboxRadioSwitch.js'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
+import NcButton from '@nextcloud/vue/components/NcButton'
 
 export default {
 	name: 'SettingsForm',
@@ -320,6 +377,10 @@ export default {
 			required: true,
 		},
 	},
+	emits: [
+		'cancel-form',
+		'submit',
+	],
 	data() {
 		return {
 			localProvider: null,
@@ -350,6 +411,9 @@ export default {
 		display: flex;
 		justify-content: right;
 		padding: 8px 0;
+		position: sticky;
+		bottom: 0;
+		background-color: var(--color-main-background);
 		> * {
 			margin: 0 4px;
 		}

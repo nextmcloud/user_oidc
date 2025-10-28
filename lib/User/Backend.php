@@ -17,6 +17,7 @@ use OCA\UserOIDC\Event\TokenValidatedEvent;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\User\Validator\SelfEncodedValidator;
 use OCA\UserOIDC\User\Validator\UserInfoValidator;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -56,6 +57,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 		private DiscoveryService $discoveryService,
 		private ProviderMapper $providerMapper,
 		private ProviderService $providerService,
+		private ProvisioningService $provisioningService,
 		private LdapService $ldapService,
 		private IUserManager $userManager,
 	) {
@@ -175,22 +177,21 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 		$result = ['formatted' => [], 'raw' => $attributes];
 
 		$emailAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_EMAIL, 'email');
-		$result['formatted']['email'] = $attributes[$emailAttribute] ?? null;
+		$result['formatted']['email'] = $this->provisioningService->getClaimValue($attributes, $emailAttribute, $providerId);
 
 		$displaynameAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_DISPLAYNAME, 'name');
-		$result['formatted']['displayName'] = $attributes[$displaynameAttribute] ?? null;
-
+		$result['formatted']['displayName'] = $this->provisioningService->getClaimValue($attributes, $displaynameAttribute, $providerId);
 		$quotaAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_QUOTA, 'quota');
-		$result['formatted']['quota'] = $attributes[$quotaAttribute] ?? null;
+		$result['formatted']['quota'] = $this->provisioningService->getClaimValue($attributes, $quotaAttribute, $providerId);
 		if ($result['formatted']['quota'] === '') {
 			$result['formatted']['quota'] = 'default';
 		}
 
 		$groupsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
-		$result['formatted']['groups'] = $attributes[$groupsAttribute] ?? null;
+		$result['formatted']['groups'] = $this->provisioningService->getClaimValue($attributes, $groupsAttribute, $providerId);
 
 		$uidAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_UID, 'sub');
-		$result['formatted']['uid'] = $attributes[$uidAttribute] ?? null;
+		$result['formatted']['uid'] = $this->provisioningService->getClaimValue($attributes, $uidAttribute, $providerId);
 
 		return $result;
 	}
@@ -201,9 +202,12 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	 * @since 6.0.0
 	 */
 	public function getCurrentUserId(): string {
+		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
+		$ncOidcProviderBearerValidation = isset($oidcSystemConfig['oidc_provider_bearer_validation']) && $oidcSystemConfig['oidc_provider_bearer_validation'] === true;
+
 		$providers = $this->providerMapper->getProviders();
-		if (count($providers) === 0) {
-			$this->logger->debug('no OIDC providers');
+		if (count($providers) === 0 && !$ncOidcProviderBearerValidation) {
+			$this->logger->debug('no OIDC providers and no NC provider validation');
 			return '';
 		}
 
@@ -215,7 +219,6 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 			return '';
 		}
 
-		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
 		// check if we should use UserInfoValidator (default is false)
 		if (!isset($oidcSystemConfig['userinfo_bearer_validation']) || !$oidcSystemConfig['userinfo_bearer_validation']) {
 			if (($key = array_search(UserInfoValidator::class, $this->tokenValidators)) !== false) {
@@ -227,6 +230,28 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 			if (($key = array_search(SelfEncodedValidator::class, $this->tokenValidators)) !== false) {
 				unset($this->tokenValidators[$key]);
 			}
+		}
+
+		// check if we should ask the OIDC Identity Provider app (app_id: oidc) to validate the token (default is false)
+		if ($ncOidcProviderBearerValidation) {
+			if (class_exists(\OCA\OIDCIdentityProvider\Event\TokenValidationRequestEvent::class)) {
+				try {
+					$validationEvent = new \OCA\OIDCIdentityProvider\Event\TokenValidationRequestEvent($headerToken);
+					$this->eventDispatcher->dispatchTyped($validationEvent);
+					$oidcProviderUserId = $validationEvent->getUserId();
+					if ($oidcProviderUserId !== null) {
+						return $oidcProviderUserId;
+					} else {
+						$this->logger->debug('[NextcloudOidcProviderValidator] The bearer token validation has failed');
+					}
+				} catch (\Exception|\Throwable $e) {
+					$this->logger->debug('[NextcloudOidcProviderValidator] The bearer token validation has crashed', ['exception' => $e]);
+				}
+			} else {
+				$this->logger->debug('[NextcloudOidcProviderValidator] Impossible to validate bearer token with Nextcloud Oidc provider, OCA\OIDCIdentityProvider\Event\TokenValidationRequestEvent class not found');
+			}
+		} else {
+			$this->logger->debug('[NextcloudOidcProviderValidator] oidc_provider_bearer_validation is false or not defined');
 		}
 
 		$autoProvisionAllowed = (!isset($oidcSystemConfig['auto_provision']) || $oidcSystemConfig['auto_provision']);
@@ -252,23 +277,23 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 								$this->userManager->search($tokenUserId);
 								$this->ldapService->syncUser($tokenUserId);
 							}
-							$userFromOtherBackend = $this->userManager->get($tokenUserId);
-							if ($userFromOtherBackend !== null && $this->ldapService->isLdapDeletedUser($userFromOtherBackend)) {
-								$userFromOtherBackend = null;
+							$existingUser = $this->userManager->get($tokenUserId);
+							if ($existingUser !== null && $this->ldapService->isLdapDeletedUser($existingUser)) {
+								$existingUser = null;
 							}
 
 							$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
-							if (!$softAutoProvisionAllowed && $userFromOtherBackend !== null) {
+							if (!$softAutoProvisionAllowed && $existingUser !== null && $existingUser->getBackendClassName() !== Application::APP_ID) {
 								// if soft auto-provisioning is disabled,
 								// we refuse login for a user that already exists in another backend
 								return '';
 							}
-							if ($userFromOtherBackend === null) {
+							if ($existingUser === null) {
 								// only create the user in our backend if the user does not exist in another backend
 								$backendUser = $this->userMapper->getOrCreate($provider->getId(), $tokenUserId);
 								$userId = $backendUser->getUserId();
 							} else {
-								$userId = $userFromOtherBackend->getUID();
+								$userId = $existingUser->getUID();
 							}
 
 							$this->checkFirstLogin($userId);
@@ -276,13 +301,15 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 							if ($this->providerService->getSetting($provider->getId(), ProviderService::SETTING_BEARER_PROVISIONING, '0') === '1') {
 								$provisioningStrategy = $validator->getProvisioningStrategy();
 								if ($provisioningStrategy) {
-									$this->provisionUser($validator->getProvisioningStrategy(), $provider, $tokenUserId, $headerToken, $userFromOtherBackend);
+									$this->provisionUser($validator->getProvisioningStrategy(), $provider, $tokenUserId, $headerToken, $existingUser);
 								}
 							}
 
+							$this->session->set('last-password-confirm', strtotime('+4 year', time()));
 							return $userId;
 						} elseif ($this->userExists($tokenUserId)) {
 							$this->checkFirstLogin($tokenUserId);
+							$this->session->set('last-password-confirm', strtotime('+4 year', time()));
 							return $tokenUserId;
 						} else {
 							// check if the user exists locally
@@ -303,6 +330,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 								return '';
 							}
 							$this->checkFirstLogin($tokenUserId);
+							$this->session->set('last-password-confirm', strtotime('+4 year', time()));
 							return $tokenUserId;
 						}
 					}
@@ -356,14 +384,14 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	 * @param Provider $provider
 	 * @param string $tokenUserId
 	 * @param string $headerToken
-	 * @param IUser|null $userFromOtherBackend
+	 * @param IUser|null $existingUser
 	 * @return IUser|null
 	 */
 	private function provisionUser(
 		string $provisioningStrategyClass, Provider $provider, string $tokenUserId, string $headerToken,
-		?IUser $userFromOtherBackend,
+		?IUser $existingUser,
 	): ?IUser {
 		$provisioningStrategy = \OC::$server->get($provisioningStrategyClass);
-		return $provisioningStrategy->provisionUser($provider, $tokenUserId, $headerToken, $userFromOtherBackend);
+		return $provisioningStrategy->provisionUser($provider, $tokenUserId, $headerToken, $existingUser);
 	}
 }
