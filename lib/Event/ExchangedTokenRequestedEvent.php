@@ -12,7 +12,7 @@ use OCA\UserOIDC\Model\Token;
 use OCP\EventDispatcher\Event;
 
 /**
- * This event is emitted with by other apps which need an exchanged token for another audience (another client ID)
+ * This event is emitted by other apps which need an exchanged token for another audience (another client ID)
  */
 class ExchangedTokenRequestedEvent extends Event {
 
@@ -20,6 +20,7 @@ class ExchangedTokenRequestedEvent extends Event {
 
 	public function __construct(
 		private string $targetAudience,
+		private array $extraScopes = [],
 	) {
 		parent::__construct();
 	}
@@ -30,6 +31,10 @@ class ExchangedTokenRequestedEvent extends Event {
 
 	public function setTargetAudience(string $targetAudience): void {
 		$this->targetAudience = $targetAudience;
+	}
+
+	public function getExtraScopes(): array {
+		return $this->extraScopes;
 	}
 
 	public function getToken(): ?Token {

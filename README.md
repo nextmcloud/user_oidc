@@ -9,8 +9,69 @@
 OpenID Connect user backend for Nextcloud
 
 ## General usage
-See [Nextcloud and OpenID-Connect](https://www.schiessle.org/articles/2023/07/04/nextcloud-and-openid-connect/)
+See [Nextcloud and OpenID-Connect](https://web.archive.org/web/20240412121655/https://www.schiessle.org/articles/2023/07/04/nextcloud-and-openid-connect/)
 for a proper jumpstart.
+
+---
+
+## `user_oidc.httpclient.allowselfsigned`
+
+```php
+'user_oidc' => [
+    'httpclient.allowselfsigned' => true,
+]
+```
+
+This configuration allows Nextcloud to **trust self-signed SSL certificates** when making HTTP requests through the internal HTTP client.
+It is especially useful when your OAuth2 or OIDC provider is hosted locally or uses a self-signed certificate not recognized by public CAs.
+
+* **true**: Disables SSL certificate verification (adds the `verify => false` option to the actual HTTP client)
+* **false** (default): SSL verification remains enabled and strict
+
+> ⚠️ Use with caution in production environments, as disabling certificate verification can introduce security risks.
+
+---
+
+## `user_oidc.prompt`
+
+```php
+'user_oidc' => [
+  'prompt' => 'internal'
+]
+```
+
+This option allows customizing the `prompt` parameter sent in the OAuth2/OIDC authorization request.
+
+Supported values include:
+
+* `none`
+* `login`
+* `consent`
+* `internal` (custom)
+
+The `internal` prompt is specific to **[OAuth2 Passport Server](https://github.com/elyerr/oauth2-passport-server)** and is designed to enable seamless login
+for private or internal applications without requiring user consent or interaction.
+
+Documentation for all supported prompt values is available here:
+[Oauth2 passport server prompts-supported](https://gitlab.com/elyerr/oauth2-passport-server/-/wikis/home/prompts-supported)
+
+## `user_oidc.default_token_endpoint_auth_method`
+
+The OIDC specifications are clear on this. It is stated in https://openid.net/specs/openid-connect-discovery-1_0.html
+that if `token_endpoint_auth_methods_supported` is not set in the provider discovery endpoint payload,
+`client_secret_basic` should be used as default authentication method.
+
+But it has been reported that, with Authelia for example, only `client_secret_post` might be allowed while `token_endpoint_auth_methods_supported`
+is not set in the discovery. In such case, you can set the default token endpoint authentication method with:
+
+```php
+'user_oidc' => [
+  'default_token_endpoint_auth_method' => 'client_secret_post'
+]
+```
+
+
+---
 
 ### User IDs
 
@@ -40,7 +101,7 @@ sudo -u www-data php /var/www/nextcloud/occ user_oidc:provider demoprovider --cl
     --clientsecret="lbXy***********" --discoveryuri="https://accounts.example.com/openid-configuration"
 ```
 
-Attribute mappings can be optionally specified. For more details refer to `occ user_oidc:provider --help`.
+Other options like attribute mappings or group provisioning can be optionally specified. For more details refer to `occ user_oidc:provider --help`.
 
 To delete a provider, use:
 ```
@@ -53,11 +114,36 @@ To skip the confirmation, use `--force`.
 ***Warning***: be careful with the deletion of a provider because in some setup, this invalidates access to all
 NextCloud accounts associated with this provider.
 
+#### JWKS cache invalidation
+
+A provider-specific JWKS cache is stored by user_oidc. This cache is valid for one hour.
+If the JWKS changed on the IdP side, you can clear this JWKS
+cache by editing the provider with occ. You don't have to change any value. For example, if your provider identifier is
+`my_identifier` and the client ID is `my_client_id`, you can run:
+
+```
+occ user_oidc:provider my_identifier --clientid my_client_id
+```
+
+to clear the JWKS cache of the provider `my_identifier`.
+
 #### Avatar support
 
 The avatar attribute on your IdP side may contain a URL pointing to an image file or directly a base64 encoded image.
 The base64 should start with `data:image/png;base64,` or `data:image/jpeg;base64,`.
 The image should be in JPG or PNG format and have the same width and height.
+
+### Custom login button label
+
+You can set a custom label for the buttons in the login page.
+
+Set this value in `config.php`:
+``` php
+'user_oidc' => [
+    'login_label' => 'Connect with {name}',
+],
+```
+This custom label won't be translated.
 
 ### Disable default claims
 
@@ -74,6 +160,21 @@ To change this behaviour and disable the default claims, you can change this val
 When default claims are disabled, each claim will be asked for only if there is an attribute explicitely mapped
 in the OpenId client settings (in Nextcloud's admin settings).
 
+### Call the userinfo endpoint to enrich the login ID token
+
+If some user information is not in your login ID tokens but can be obtained with the userinfo endpoint, just enable
+`enrich_login_id_token_with_userinfo` in config.php. This is disabled by default.
+``` php
+'user_oidc' => [
+    'enrich_login_id_token_with_userinfo' => true,
+],
+```
+
+This will use the content of the userinfo endpoint response just like if it had been included in the login ID token.
+
+This will only work on login and not when validating a bearer token
+because provisioning when validating a bearer access token is not supported yet.
+
 ### ID4me option
 ID4me is an application setting switch which is configurable as normal Nextcloud app setting:
 ```
@@ -87,7 +188,7 @@ login. Admins can still use the regular login through adding the `?direct=1`
 parameter to the login URL.
 
 ```bash
-sudo -u www-data php var/www/nextcloud/occ config:app:set --value=0 user_oidc allow_multiple_user_backends
+sudo -u www-data php var/www/nextcloud/occ config:app:set --type=string --value=0 user_oidc allow_multiple_user_backends
 ```
 
 ### PKCE
@@ -252,7 +353,7 @@ curl -H "ocs-apirequest: true" -u admin:admin -X DELETE
   https://my.nextcloud.org/ocs/v2.php/apps/user_oidc/api/v1/user/USER_ID
 ```
 
-### UserInfo request for Bearer token validation
+### Bearer token validation
 
 The OIDC tokens used to make API call to Nextcloud might have been generated by an external entity.
 It is possible that they don't contain the user ID attribute. In this case, this attribute
@@ -274,16 +375,39 @@ it is possible to disable the classic "self-encoded" validation:
 ],
 ```
 
+If you want to ask the [OIDC Identity Provider app](https://apps.nextcloud.com/apps/oidc) to validate a bearer token:
+``` php
+'user_oidc' => [
+    'oidc_provider_bearer_validation' => true,
+],
+```
+This requires the OIDC Identity Provider app >= v1.4.0 . Access tokens and JWT tokens can be validated.
+
+### Group provisioning
+
+You can configure each provider:
+* Toggle group provisioning (creates nonexisting groups on login)
+* Set the group whitelist regular expression (nonmatching groups will be kept untouched)
+* Toggle login restriction to people who don't belong to any whitelisted group
+
+This can be done in the graphical settings, in the "OpenID Connect" admin settings section or with the occ command to create/update providers:
+
+```
+sudo -u www-data php /var/www/nextcloud/occ user_oidc:provider demoprovider \
+                --clientid="..." --clientsecret="***" --discoveryuri="..." \
+                --group-provisioning=1 --group-whitelist-regex='/<regex>/' --group-restrict-login-to-whitelist=1
+```
+
 ### Disable audience and azp checks
 
-The `audience` and `azp` token claims will be checked when validating a login or bearer ID token.
-You can disable these check with these config value (in config.php):
+The `audience` and `azp` token claims will be checked when validating a login ID token.
+Only the `audience` will be checked when validating a Bearer token.
+You can disable these checks with these config values (in config.php):
 ``` php
 'user_oidc' => [
     'login_validation_audience_check' => false,
     'login_validation_azp_check' => false,
     'selfencoded_bearer_validation_audience_check' => false,
-    'selfencoded_bearer_validation_azp_check' => false,
 ],
 ```
 
@@ -295,6 +419,40 @@ This app can stop matching users (when a user search is performed in Nextcloud) 
     'user_search_match_emails' => false,
 ],
 ```
+
+### Optional: Enable support for nested and fallback claim mappings
+
+By default, claim mapping in this app uses **flat attribute keys** like `email`, `name`, `custom.nickname`, etc.
+However, some Identity Providers return **structured tokens** (nested JSON), and mapping such claims requires dot-notation (e.g. `custom.nickname` → `{ "custom": { "nickname": "value" } }`).
+
+Additionally, you may want to define **fallbacks**, in case a preferred claim is missing, using the `|` separator.
+
+#### Example
+
+```
+custom.nickname | profile.name | name
+```
+
+This will return the first non-empty string from the token in the order defined.
+
+
+#### Enabling this behavior (optional)
+
+To enable support for dot-notation and fallback claims for a specific provider, set the following configuration flag via the Nextcloud command line:
+
+```bash
+php occ user_oidc:provider <your-provider-identifier> --resolve-nested-claims=1
+```
+
+To disable again:
+
+```bash
+php occ user_oidc:provider <your-provider-identifier> --resolve-nested-claims=0
+```
+
+This setting is also available in the web interface when configuring a provider.
+This setting is **disabled by default** to ensure full backward compatibility with existing configurations and flat token structures.
+
 
 ## Building the app
 

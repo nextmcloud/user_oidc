@@ -1,4 +1,5 @@
 <?php
+
 /**
  * SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -10,16 +11,16 @@ declare(strict_types=1);
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Service\ProviderService;
-use OCP\IConfig;
+use OCP\IAppConfig;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\TestCase;
 
 class ProviderServiceTest extends TestCase {
 
 	/**
-	 * @var IConfig|\PHPUnit\Framework\MockObject\MockObject
+	 * @var IAppConfig|\PHPUnit\Framework\MockObject\MockObject
 	 */
-	private $config;
+	private $appConfig;
 	/**
 	 * @var ProviderMapper|\PHPUnit\Framework\MockObject\MockObject
 	 */
@@ -31,9 +32,9 @@ class ProviderServiceTest extends TestCase {
 
 	public function setUp(): void {
 		parent::setUp();
-		$this->config = $this->createMock(IConfig::class);
+		$this->appConfig = $this->createMock(IAppConfig::class);
 		$this->providerMapper = $this->createMock(ProviderMapper::class);
-		$this->providerService = new ProviderService($this->config, $this->providerMapper);
+		$this->providerService = new ProviderService($this->appConfig, $this->providerMapper);
 	}
 
 	public function testGetProvidersWithSettings() {
@@ -47,8 +48,8 @@ class ProviderServiceTest extends TestCase {
 			->method('getProviders')
 			->willReturn($providers);
 
-		$this->config->expects(self::any())
-			->method('getAppValue')
+		$this->appConfig->expects(self::any())
+			->method('getValueString')
 			->willReturn('1');
 
 		Assert::assertEquals([
@@ -58,6 +59,7 @@ class ProviderServiceTest extends TestCase {
 				'clientId' => null,
 				'discoveryEndpoint' => null,
 				'endSessionEndpoint' => null,
+				'postLogoutUri' => null,
 				'scope' => null,
 				'settings' => [
 					'mappingDisplayName' => '1',
@@ -65,6 +67,8 @@ class ProviderServiceTest extends TestCase {
 					'mappingQuota' => '1',
 					'mappingUid' => '1',
 					'mappingGroups' => '1',
+					'mappingLanguage' => '1',
+					'mappingLocale' => '1',
 					'mappingAddress' => '1',
 					'mappingStreetaddress' => '1',
 					'mappingPostalcode' => '1',
@@ -81,6 +85,8 @@ class ProviderServiceTest extends TestCase {
 					'mappingBiography' => '1',
 					'mappingPhonenumber' => '1',
 					'mappingGender' => '1',
+					'mappingPronouns' => '1',
+					'mappingBirthdate' => '1',
 					'uniqueUid' => true,
 					'checkBearer' => true,
 					'bearerProvisioning' => true,
@@ -90,6 +96,7 @@ class ProviderServiceTest extends TestCase {
 					'groupProvisioning' => true,
 					'groupWhitelistRegex' => '1',
 					'restrictLoginToGroups' => true,
+					'nestedAndFallbackClaims' => true,
 				],
 			],
 			[
@@ -98,6 +105,7 @@ class ProviderServiceTest extends TestCase {
 				'clientId' => null,
 				'discoveryEndpoint' => null,
 				'endSessionEndpoint' => null,
+				'postLogoutUri' => null,
 				'scope' => null,
 				'settings' => [
 					'mappingDisplayName' => '1',
@@ -105,6 +113,8 @@ class ProviderServiceTest extends TestCase {
 					'mappingQuota' => '1',
 					'mappingUid' => '1',
 					'mappingGroups' => '1',
+					'mappingLanguage' => '1',
+					'mappingLocale' => '1',
 					'mappingAddress' => '1',
 					'mappingStreetaddress' => '1',
 					'mappingPostalcode' => '1',
@@ -121,6 +131,8 @@ class ProviderServiceTest extends TestCase {
 					'mappingBiography' => '1',
 					'mappingPhonenumber' => '1',
 					'mappingGender' => '1',
+					'mappingPronouns' => '1',
+					'mappingBirthdate' => '1',
 					'uniqueUid' => true,
 					'checkBearer' => true,
 					'bearerProvisioning' => true,
@@ -130,6 +142,7 @@ class ProviderServiceTest extends TestCase {
 					'groupProvisioning' => true,
 					'groupWhitelistRegex' => '1',
 					'restrictLoginToGroups' => true,
+					'nestedAndFallbackClaims' => true,
 				],
 			],
 		], $this->providerService->getProvidersWithSettings());
@@ -149,6 +162,8 @@ class ProviderServiceTest extends TestCase {
 			'extraClaims' => 'claim1 claim2',
 			'providerBasedId' => false,
 			'groupProvisioning' => true,
+			'mappingLanguage' => 'language',
+			'mappingLocale' => 'locale',
 			'mappingAddress' => 'address',
 			'mappingStreetaddress' => 'street_address',
 			'mappingPostalcode' => 'postal_code',
@@ -165,17 +180,22 @@ class ProviderServiceTest extends TestCase {
 			'mappingBiography' => 'biography',
 			'mappingPhonenumber' => 'phone',
 			'mappingGender' => 'gender',
+			'mappingPronouns' => 'pronouns',
+			'mappingBirthdate' => 'birthdate',
 			'groupWhitelistRegex' => '',
 			'restrictLoginToGroups' => false,
+			'nestedAndFallbackClaims' => false,
 		];
-		$this->config->expects(self::any())
-			->method('getAppValue')
+		$this->appConfig->expects(self::any())
+			->method('getValueString')
 			->willReturnMap([
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_DISPLAYNAME, '', 'dn'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_EMAIL, '', 'mail'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_QUOTA, '', '1g'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_UID, '', 'uid'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_GROUPS, '', 'groups'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_LANGUAGE, '', 'language'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_LOCALE, '', 'locale'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_ADDRESS, '', 'address'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_STREETADDRESS, '', 'street_address'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_POSTALCODE, '', 'postal_code'],
@@ -192,6 +212,8 @@ class ProviderServiceTest extends TestCase {
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_BIOGRAPHY, '', 'biography'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_PHONE, '', 'phone'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_GENDER, '', 'gender'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_PRONOUNS, '', 'pronouns'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_BIRTHDATE, '', 'birthdate'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_UNIQUE_UID, '', '1'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_CHECK_BEARER, '', '0'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_BEARER_PROVISIONING, '', '0'],
@@ -201,6 +223,7 @@ class ProviderServiceTest extends TestCase {
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_GROUP_PROVISIONING, '', '1'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_GROUP_WHITELIST_REGEX, '', ''],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS, '', '0'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING, '', '0'],
 			]);
 
 		Assert::assertEquals(
@@ -227,18 +250,22 @@ class ProviderServiceTest extends TestCase {
 	public function testDeleteSettings() {
 		$supportedConfigs = self::invokePrivate($this->providerService, 'getSupportedSettings');
 		$keysToDelete = [...$supportedConfigs, ProviderService::SETTING_JWKS_CACHE, ProviderService::SETTING_JWKS_CACHE_TIMESTAMP];
-		$this->config->expects(self::exactly(count($keysToDelete)))
-			->method('deleteAppValue')
-			->withConsecutive(...array_map(function ($setting) {
-				return [Application::APP_ID, 'provider-1-' . $setting];
-			}, $keysToDelete));
+		$realKeysToDelete = array_map(function ($setting) {
+			return 'provider-1-' . $setting;
+		}, $keysToDelete);
+		$this->appConfig->expects(self::exactly(count($keysToDelete)))
+			->method('deleteKey')
+			->willReturnCallback(function ($appName, $key) use ($realKeysToDelete) {
+				$this->assertEquals(Application::APP_ID, $appName);
+				$this->assertContains($key, $realKeysToDelete);
+			});
 
 		$this->providerService->deleteSettings(1);
 	}
 
 	public function testSetSetting() {
-		$this->config->expects(self::once())
-			->method('setAppValue')
+		$this->appConfig->expects(self::once())
+			->method('setValueString')
 			->with(Application::APP_ID, 'provider-1-key', 'value');
 
 		$this->providerService->setSetting(1, 'key', 'value');
@@ -253,8 +280,8 @@ class ProviderServiceTest extends TestCase {
 
 	/** @dataProvider dataGetSetting */
 	public function testGetSetting($providerId, $key, $stored, $expected, $default = '') {
-		$this->config->expects(self::once())
-			->method('getAppValue')
+		$this->appConfig->expects(self::once())
+			->method('getValueString')
 			->with(Application::APP_ID, 'provider-' . $providerId . '-' . $key, '')
 			->willReturn($stored);
 

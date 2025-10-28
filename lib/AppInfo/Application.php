@@ -10,13 +10,17 @@ namespace OCA\UserOIDC\AppInfo;
 
 use Exception;
 use OC_App;
-use OC_User;
 use OCA\Files\Event\LoadAdditionalScriptsEvent;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Event\ExchangedTokenRequestedEvent;
+use OCA\UserOIDC\Event\ExternalTokenRequestedEvent;
+use OCA\UserOIDC\Event\InternalTokenRequestedEvent;
 use OCA\UserOIDC\Listener\ExchangedTokenRequestedListener;
+use OCA\UserOIDC\Listener\ExternalTokenRequestedListener;
+use OCA\UserOIDC\Listener\InternalTokenRequestedListener;
 use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\MagentaBearer\MBackend;
+use OCA\UserOIDC\Listener\TokenInvalidatedListener;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\ProvisioningEventService;
 use OCA\UserOIDC\Service\ProvisioningService;
@@ -25,6 +29,7 @@ use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\ISession;
@@ -61,16 +66,24 @@ class Application extends App implements IBootstrap {
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
 		/* Register our own user backend */
-		// $this->backend = $this->getContainer()->get(Backend::class);
 		$this->backend = $this->getContainer()->get(MBackend::class);
-		// this was done before but OC_User::useBackend calls OC::$server->getUserManager()->registerBackend anyway
-		// so the backend was registered twice, leading to wrong user count (double)
-		$userManager->registerBackend($this->backend);
-		// TODO check if it can be replaced by $userManager->registerBackend($this->backend); in our case
-		OC_User::useBackend($this->backend);
+
+		$config = $this->getContainer()->get(IConfig::class);
+		if (version_compare($config->getSystemValueString('version', '0.0.0'), '32.0.0', '>=')) {
+			// see https://docs.nextcloud.com/server/latest/developer_manual/app_publishing_maintenance/app_upgrade_guide/upgrade_to_32.html#id3
+			$userManager->registerBackend($this->backend);
+		} else {
+			\OC_User::useBackend($this->backend);
+		}
 
 		$context->registerEventListener(LoadAdditionalScriptsEvent::class, TimezoneHandlingListener::class);
 		$context->registerEventListener(ExchangedTokenRequestedEvent::class, ExchangedTokenRequestedListener::class);
+		$context->registerEventListener(ExternalTokenRequestedEvent::class, ExternalTokenRequestedListener::class);
+		$context->registerEventListener(InternalTokenRequestedEvent::class, InternalTokenRequestedListener::class);
+
+		if (class_exists(\OCP\Authentication\Events\TokenInvalidatedEvent::class)) {
+			$context->registerEventListener(\OCP\Authentication\Events\TokenInvalidatedEvent::class, TokenInvalidatedListener::class);
+		}
 	}
 
 	public function boot(IBootContext $context): void {
@@ -172,14 +185,19 @@ class Application extends App implements IBootstrap {
 		}
 	}
 
-	private function registerLogin(IRequest $request, IL10N $l10n, IURLGenerator $urlGenerator, ProviderMapper $providerMapper): void {
+	private function registerLogin(
+		IRequest $request, IL10N $l10n, IURLGenerator $urlGenerator, IConfig $config, ProviderMapper $providerMapper,
+	): void {
 		$redirectUrl = $request->getParam('redirect_url');
 		$absoluteRedirectUrl = !empty($redirectUrl) ? $urlGenerator->getAbsoluteURL($redirectUrl) : $redirectUrl;
 		$providers = $this->getCachedProviders($providerMapper);
+		$customLoginLabel = $config->getSystemValue('user_oidc', [])['login_label'] ?? '';
 		foreach ($providers as $provider) {
 			// FIXME: Move to IAlternativeLogin but requires boot due to db connection
 			OC_App::registerLogIn([
-				'name' => $l10n->t('Login with %1s', [$provider->getIdentifier()]),
+				'name' => $customLoginLabel
+					? preg_replace('/{name}/', $provider->getIdentifier(), $customLoginLabel)
+					: $l10n->t('Login with %1s', [$provider->getIdentifier()]),
 				'href' => $urlGenerator->linkToRoute(self::APP_ID . '.login.login', ['providerId' => $provider->getId(), 'redirectUrl' => $absoluteRedirectUrl]),
 			]);
 		}
