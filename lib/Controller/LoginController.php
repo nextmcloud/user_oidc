@@ -325,7 +325,6 @@ class LoginController extends BaseOidcController {
 				$cancelRedirectUrl = $this->config->getSystemValue('user_oidc.cancel_redirect_url', 'https://cloud.telekom-dienste.de/');
 				return new RedirectResponse($cancelRedirectUrl);
 			}
-
 			$this->logger->warning('Code login error', ['error' => $error, 'error_description' => $error_description]);
 			if ($this->isDebugModeEnabled()) {
 				return new JSONResponse([
@@ -908,11 +907,11 @@ class LoginController extends BaseOidcController {
 
 	private function isMobileDevice(): bool {
 		$mobileKeywords = $this->config->getSystemValue('user_oidc.mobile_keywords', ['Android', 'iPhone', 'iPad', 'iPod', 'Windows Phone', 'Mobile', 'webOS', 'BlackBerry', 'Opera Mini', 'IEMobile']);
-	
+
 		if (!isset($_SERVER['HTTP_USER_AGENT'])) {
 			return false; // if no user-agent is set, assume desktop
 		}
-	
+
 		foreach ($mobileKeywords as $keyword) {
 			if (stripos($_SERVER['HTTP_USER_AGENT'], $keyword) !== false) {
 				return true; // device is mobile
