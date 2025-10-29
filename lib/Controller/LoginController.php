@@ -200,16 +200,23 @@ class LoginController extends BaseOidcController {
 			return $this->buildErrorTemplateResponse($message, Http::STATUS_NOT_FOUND, ['reason' => 'provider unreachable']);
 		}
 
-		$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$sessionKeySuffix = '-' . $state;
-		$this->session->set(self::STATE . $sessionKeySuffix, $state);
-		$this->logger->debug('Storing OIDC state', ['state' => $state]);
-		$timestamp = $this->timeFactory->getTime();
-		$this->session->set(self::TIMESTAMP . $sessionKeySuffix, $timestamp);
-		$this->session->set(self::REDIRECT_AFTER_LOGIN . $sessionKeySuffix, $redirectUrl);
+		// check if oidc state is present in session data
+		if ($this->session->exists(self::STATE)) {
+			$state = $this->session->get(self::STATE);
+			$nonce = $this->session->get(self::NONCE);
+		} else {
+			$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+			$sessionKeySuffix = '-' . $state;
+			$this->session->set(self::STATE . $sessionKeySuffix, $state);
+			$this->logger->debug('Storing OIDC state', ['state' => $state]);
+			$timestamp = $this->timeFactory->getTime();
+			$this->session->set(self::TIMESTAMP . $sessionKeySuffix, $timestamp);
+			$this->session->set(self::REDIRECT_AFTER_LOGIN . $sessionKeySuffix, $redirectUrl);
 
-		$nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$this->session->set(self::NONCE . $sessionKeySuffix, $nonce);
+			$nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+			$this->session->set(self::NONCE . $sessionKeySuffix, $nonce);
+			$this->session->set(self::PROVIDERID, $providerId);
+		}
 
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
 		$isPkceSupported = in_array('S256', $discovery['code_challenge_methods_supported'] ?? [], true);
@@ -221,7 +228,7 @@ class LoginController extends BaseOidcController {
 			$this->session->set(self::CODE_VERIFIER . $sessionKeySuffix, $code_verifier);
 		}
 
-		$this->session->set(self::LOGIN_PROVIDERID . $sessionKeySuffix, $providerId);
+		// $this->session->set(self::LOGIN_PROVIDERID . $sessionKeySuffix, $providerId);
 		$this->session->close();
 
 		// get attribute mapping settings
@@ -702,16 +709,20 @@ class LoginController extends BaseOidcController {
 			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $userId, null, false));
 		}
 
-		$storeLoginTokenEnabled = $this->appConfig->getValueString(Application::APP_ID, 'store_login_token', '0', lazy: true) === '1';
-		if ($storeLoginTokenEnabled) {
+		// $storeLoginTokenEnabled = $this->appConfig->getValueString(Application::APP_ID, 'store_login_token', '0') === '1';
+		// if ($storeLoginTokenEnabled) {
 			// store all token information for potential token exchange requests
-			$tokenData = array_merge(
-				$data,
-				['provider_id' => $providerId],
-			);
-			$this->tokenService->storeToken($tokenData);
-		}
-		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
+			// $tokenData = array_merge(
+			// 	$data,
+			// 	['provider_id' => $providerId],
+			// );
+			// $this->tokenService->storeToken($tokenData);
+		// }
+		// $this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
+
+		// remove code login session values
+		$this->session->remove(self::STATE);
+		$this->session->remove(self::NONCE);
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
@@ -720,7 +731,7 @@ class LoginController extends BaseOidcController {
 		try {
 			$authToken = $this->authTokenProvider->getToken($this->session->getId());
 			$this->sessionMapper->createOrUpdateSession(
-				$idTokenPayload->sid ?? 'fallback-sid',
+				$idTokenPayload->{'urn:telekom.com:session_token'} ?? 'fallback-sid',
 				$idTokenPayload->sub ?? 'fallback-sub',
 				$idTokenPayload->iss ?? 'fallback-iss',
 				$authToken->getId(),
@@ -1011,6 +1022,22 @@ class LoginController extends BaseOidcController {
 			],
 			Http::STATUS_BAD_REQUEST,
 		);
+	}
+
+	/**
+	 * Backward compatible function for MagentaCLOUD to smoothly transition to new config
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 * @BruteForceProtection(action=userOidcBackchannelLogout)
+	 *
+	 * @param string $logout_token
+	 * @return JSONResponse
+	 * @throws Exception
+	 * @throws \JsonException
+	 */
+	public function telekomBackChannelLogout(string $logout_token = '') {
+		return $this->backChannelLogout('Telekom', $logout_token);
 	}
 
 	private function toCodeChallenge(string $data): string {
