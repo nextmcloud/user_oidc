@@ -910,7 +910,7 @@ class LoginController extends BaseOidcController {
 		string $error,
 		string $description,
 		array $throttleMetadata = [],
-    ?bool $throttle = null,
+		?bool $throttle = null,
 	): JSONResponse {
 		$this->logger->debug('Backchannel logout error. ' . $error . ' ; ' . $description);
 		return new JSONResponse(
