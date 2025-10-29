@@ -18,4 +18,8 @@ require_once __DIR__ . '/../../../lib/base.php';
 require_once __DIR__ . '/../../../tests/autoload.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 
+\OC::$loader->addValidRoot(OC::$SERVERROOT . '/tests');
+\OC::$composerAutoloader->addPsr4('OCA\\UserOIDC\\BaseTest\\', dirname(__FILE__) . '/unit/MagentaCloud/', true);
 Server::get(IAppManager::class)->loadApp('user_oidc');
+
+OC_Hook::clear();
