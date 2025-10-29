@@ -891,13 +891,13 @@ class LoginController extends BaseOidcController {
 		string $description,
 		array $throttleMetadata = [],
 	): JSONResponse {
-		$this->logger->debug('Backchannel logout error. ' . $error . ' ; ' . $description);
+		$this->logger->debug('Backchannel logout error', ['error' => $error, 'description' => $description] + $throttleMetadata);
 		return new JSONResponse(
 			[
 				'error' => $error,
 				'error_description' => $description,
 			],
-			Http::STATUS_BAD_REQUEST,
+			Http::STATUS_OK,
 		);
 	}
 
