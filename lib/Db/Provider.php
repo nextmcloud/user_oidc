@@ -23,7 +23,10 @@ use OCP\AppFramework\Db\Entity;
  * @method \void setEndSessionEndpoint(?string $endSessionEndpoint)
  * @method \string|\null getPostLogoutUri()
  * @method \void setPostLogoutUri(?string $postLogoutUri)
+ * @method \string getScope()
  * @method \void setScope(string $scope)
+ * @method \string getBearerSecret()
+ * @method \void setBearerSecret(string $bearerSecret)
  */
 class Provider extends Entity implements \JsonSerializable {
 
@@ -33,6 +36,9 @@ class Provider extends Entity implements \JsonSerializable {
 	protected $clientId;
 	/** @var string */
 	protected $clientSecret;
+	/** @var string */
+	protected $bearerSecret;
+
 	/** @var ?string */
 	protected $discoveryEndpoint;
 	/** @var ?string */
