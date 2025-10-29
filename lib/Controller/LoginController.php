@@ -24,6 +24,7 @@ use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\OIDCService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\ProvisioningDeniedException;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\SettingsService;
 use OCA\UserOIDC\Service\TokenService;
@@ -554,6 +555,25 @@ class LoginController extends BaseOidcController {
 		}
 
 		if ($autoProvisionAllowed) {
+			// TODO: (proposal) refactor all provisioning strategies into event handlers
+			$user = null;
+
+			try {
+				// use potential user from other backend, create it in our backend if it does not exist
+				$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $userFromOtherBackend);
+			} catch (ProvisioningDeniedException $denied) {
+				// TODO: MagentaCLOUD should upstream the exception handling
+				$redirectUrl = $denied->getRedirectUrl();
+				if ($redirectUrl === null) {
+					$message = $this->l10n->t('Failed to provision user');
+					return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => $denied->getMessage()]);
+				} else {
+					// error response is a redirect, e.g. to a booking site
+					// so that you can immediately get the registration page
+					return new RedirectResponse($redirectUrl);
+				}
+			}
+
 			if (!$softAutoProvisionAllowed && $existingUser !== null && $existingUser->getBackendClassName() !== Application::APP_ID) {
 				// if soft auto-provisioning is disabled,
 				// we refuse login for a user that already exists in another backend
@@ -890,6 +910,7 @@ class LoginController extends BaseOidcController {
 		string $error,
 		string $description,
 		array $throttleMetadata = [],
+		?bool $throttle = null,
 	): JSONResponse {
 		$this->logger->debug('Backchannel logout error. ' . $error . ' ; ' . $description);
 		return new JSONResponse(
