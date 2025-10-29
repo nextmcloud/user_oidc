@@ -145,30 +145,33 @@ class ProvisioningEventService extends ProvisioningService {
 	 * @param string $tokenUserId
 	 * @param int $providerId
 	 * @param object $idTokenPayload
-	 * @return IUser|null
+	 * @param IUser|null $existingLocalUser
+	 * @return array{user: ?IUser, userData: array}
 	 * @throws Exception
 	 * @throws ContainerExceptionInterface
 	 * @throws NotFoundExceptionInterface
 	 * @throws ProvisioningDeniedException
 	 */
-	public function provisionUser(string $tokenUserId, int $providerId, object $idTokenPayload, ?IUser $existingLocalUser = null): ?IUser {
+	public function provisionUser(string $tokenUserId, int $providerId, object $idTokenPayload, ?IUser $existingLocalUser = null): array {
 		try {
-			// for multiple reasons, it is better to take the uid directly from a token field
-			//$uid = $this->mapDispatchUID($providerId, $idTokenPayload, $tokenUserId);
 			$uid = $tokenUserId;
 			$displayname = $this->mapDispatchDisplayname($providerId, $idTokenPayload);
 			$email = $this->mapDispatchEmail($providerId, $idTokenPayload);
 			$quota = $this->mapDispatchQuota($providerId, $idTokenPayload);
 		} catch (AttributeValueException $eAttribute) {
-			$this->logger->info("{$uid}: user rejected by OpenId web authorization, reason: " . $eAttribute->getMessage());
+			$this->logger->info("{$tokenUserId}: user rejected by OpenId web authorization, reason: " . $eAttribute->getMessage());
 			throw new ProvisioningDeniedException($eAttribute->getMessage());
 		}
 
 		$userReaction = $this->dispatchUserAccountUpdate($uid, $displayname, $email, $quota, $idTokenPayload);
+
 		if ($userReaction->isAccessAllowed()) {
 			$this->logger->info("{$uid}: account accepted, reason: " . $userReaction->getReason());
 			$user = $this->userManager->get($uid);
-			return $user;
+			return [
+				'user' => $user,
+				'userData' => get_object_vars($idTokenPayload), // optional, analog zu ProvisioningService
+			];
 		} else {
 			$this->logger->info("{$uid}: account rejected, reason: " . $userReaction->getReason());
 			throw new ProvisioningDeniedException($userReaction->getReason(), $userReaction->getRedirectUrl());
