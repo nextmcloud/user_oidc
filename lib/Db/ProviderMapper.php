@@ -80,6 +80,7 @@ class ProviderMapper extends QBMapper {
 		?string $clientSecret = null,
 		?string $discoveryUri = null,
 		string $scope = 'openid email profile',
+		?string $bearersecret = null,
 		?string $endSessionEndpointUri = null,
 		?string $postLogoutUri = null,
 	): Provider {
@@ -102,6 +103,9 @@ class ProviderMapper extends QBMapper {
 			if ($postLogoutUri !== null) {
 				$provider->setPostLogoutUri($postLogoutUri);
 			}
+			if ($bearersecret !== null) {
+				$provider->setBearerSecret($bearersecret);
+			}
 			$provider->setScope($scope);
 
 			return $this->update($provider);
@@ -118,6 +122,7 @@ class ProviderMapper extends QBMapper {
 			$provider->setDiscoveryEndpoint($discoveryUri);
 			$provider->setEndSessionEndpoint($endSessionEndpointUri);
 			$provider->setPostLogoutUri($postLogoutUri);
+			$provider->setBearerSecret($bearersecret ?? '');
 			$provider->setScope($scope);
 
 			return $this->insert($provider);
