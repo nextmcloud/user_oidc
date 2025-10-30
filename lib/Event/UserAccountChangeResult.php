@@ -5,7 +5,6 @@
  * @author B. Rederlechner <bernd.rederlechner@t-systems.com>
  *
  * @license GNU AGPL version 3 or any later version
- *
  */
 
 declare(strict_types=1);
@@ -13,18 +12,18 @@ declare(strict_types=1);
 namespace OCA\UserOIDC\Event;
 
 /**
- * Event to provide custom mapping logic based on the OIDC token data
- * In order to avoid further processing the event propagation should be stopped
- * in the listener after processing as the value might get overwritten afterwards
- * by other listeners through $event->stopPropagation();
+ * Represents the result of an account change event decision.
+ * Used to signal whether access is allowed and optional redirect/reason info.
  */
 class UserAccountChangeResult {
 
 	/** @var bool */
 	private $accessAllowed;
+
 	/** @var string */
 	private $reason;
-	/** @var string */
+
+	/** @var string|null */
 	private $redirectUrl;
 
 	public function __construct(bool $accessAllowed, string $reason = '', ?string $redirectUrl = null) {
@@ -34,39 +33,57 @@ class UserAccountChangeResult {
 	}
 
 	/**
-	 * @return value for the logged in user attribute
+	 * Whether access for this user is allowed.
+	 *
+	 * @return bool
 	 */
 	public function isAccessAllowed(): bool {
 		return $this->accessAllowed;
 	}
 
+	/**
+	 * Set whether access for this user is allowed.
+	 *
+	 * @param bool $accessAllowed
+	 * @return void
+	 */
 	public function setAccessAllowed(bool $accessAllowed): void {
 		$this->accessAllowed = $accessAllowed;
 	}
 
 	/**
-	 * @return get optional alternate redirect address
+	 * Returns the optional alternate redirect URL.
+	 *
+	 * @return string|null
 	 */
 	public function getRedirectUrl(): ?string {
 		return $this->redirectUrl;
 	}
 
 	/**
-	 * @return set optional alternate redirect address
+	 * Sets the optional alternate redirect URL.
+	 *
+	 * @param string|null $redirectUrl
+	 * @return void
 	 */
 	public function setRedirectUrl(?string $redirectUrl): void {
 		$this->redirectUrl = $redirectUrl;
 	}
 
 	/**
-	 * @return get decision reason
+	 * Returns the decision reason.
+	 *
+	 * @return string
 	 */
 	public function getReason(): string {
 		return $this->reason;
 	}
 
 	/**
-	 * @return set decision reason
+	 * Sets the decision reason.
+	 *
+	 * @param string $reason
+	 * @return void
 	 */
 	public function setReason(string $reason): void {
 		$this->reason = $reason;
