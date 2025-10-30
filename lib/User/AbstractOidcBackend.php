@@ -190,7 +190,6 @@ abstract class AbstractOidcBackend extends ABackend implements IPasswordConfirma
 	 *
 	 * @param string $userId
 	 * @return bool
-	 * @throws NotFoundException
 	 */
 	protected function checkFirstLogin(string $userId): bool {
 		$user = $this->userManager->get($userId);
