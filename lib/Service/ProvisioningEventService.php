@@ -38,6 +38,7 @@ use OCP\IGroupManager;
 use OCP\ISession;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\L10N\IFactory;
 use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\NotFoundExceptionInterface;
 use Psr\Log\LoggerInterface;
@@ -70,6 +71,7 @@ class ProvisioningEventService extends ProvisioningService {
 		IAvatarManager $avatarManager,
 		IConfig $config,
 		ISession $session,
+		IFactory $l10nFactory,
 	) {
 		parent::__construct($idService,
 			$providerService,
@@ -83,6 +85,7 @@ class ProvisioningEventService extends ProvisioningService {
 			$avatarManager,
 			$config,
 			$session,
+			$l10nFactory,
 		);
 		$this->eventDispatcher = $eventDispatcher;
 		$this->logger = $logger;
