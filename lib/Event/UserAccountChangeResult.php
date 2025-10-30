@@ -5,6 +5,7 @@
  * @author B. Rederlechner <bernd.rederlechner@t-systems.com>
  *
  * @license GNU AGPL version 3 or any later version
+ *
  */
 
 declare(strict_types=1);

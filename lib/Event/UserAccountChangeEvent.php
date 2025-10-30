@@ -21,15 +21,33 @@ use OCP\EventDispatcher\Event;
  * by other listeners through $event->stopPropagation();
  */
 class UserAccountChangeEvent extends Event {
+
+	/** @var string */
 	private $uid;
+
+	/** @var string|null */
 	private $displayname;
+
+	/** @var string|null */
 	private $mainEmail;
+
+	/** @var string|null */
 	private $quota;
+
+	/** @var object */
 	private $claims;
+
+	/** @var UserAccountChangeResult */
 	private $result;
 
-
-	public function __construct(string $uid, ?string $displayname, ?string $mainEmail, ?string $quota, object $claims, bool $accessAllowed = false) {
+	public function __construct(
+		string $uid,
+		?string $displayname,
+		?string $mainEmail,
+		?string $quota,
+		object $claims,
+		bool $accessAllowed = false
+	) {
 		parent::__construct();
 		$this->uid = $uid;
 		$this->displayname = $displayname;
@@ -40,48 +58,68 @@ class UserAccountChangeEvent extends Event {
 	}
 
 	/**
-	 * @return get event username (uid)
+	 * Get the user ID (UID) associated with the event.
+	 *
+	 * @return string
 	 */
 	public function getUid(): string {
 		return $this->uid;
 	}
 
 	/**
-	 * @return get event displayname
+	 * Get the display name for the account.
+	 *
+	 * @return string|null
 	 */
 	public function getDisplayName(): ?string {
 		return $this->displayname;
 	}
 
 	/**
-	 * @return get event main email
+	 * Get the primary email address.
+	 *
+	 * @return string|null
 	 */
 	public function getMainEmail(): ?string {
 		return $this->mainEmail;
 	}
 
 	/**
-	 * @return get event quota
+	 * Get the quota assigned to the account.
+	 *
+	 * @return string|null
 	 */
 	public function getQuota(): ?string {
 		return $this->quota;
 	}
 
 	/**
-	 * @return array the array of claim values associated with the event
+	 * Get the OIDC claims associated with the event.
+	 *
+	 * @return object
 	 */
 	public function getClaims(): object {
 		return $this->claims;
 	}
 
 	/**
-	 * @return value for the logged in user attribute
+	 * Get the current result object.
+	 *
+	 * @return UserAccountChangeResult
 	 */
 	public function getResult(): UserAccountChangeResult {
 		return $this->result;
 	}
 
-	public function setResult(bool $accessAllowed, string $reason = '', ?string $redirectUrl = null) : void {
+	/**
+	 * Replace the result object with a new one.
+	 *
+	 * @param bool $accessAllowed Whether access should be allowed
+	 * @param string $reason Optional reason for the decision
+	 * @param string|null $redirectUrl Optional redirect URL
+	 * @return void
+	 */
+	public function setResult(bool $accessAllowed, string $reason = '', ?string $redirectUrl = null): void {
 		$this->result = new UserAccountChangeResult($accessAllowed, $reason, $redirectUrl);
 	}
 }
