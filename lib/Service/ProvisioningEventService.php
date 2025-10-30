@@ -28,6 +28,7 @@ namespace OCA\UserOIDC\Service;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\AttributeMappedEvent;
 use OCA\UserOIDC\Event\UserAccountChangeEvent;
+use OCA\UserOIDC\Exception\AttributeValueException;
 use OCP\Accounts\IAccountManager;
 use OCP\DB\Exception;
 use OCP\EventDispatcher\IEventDispatcher;
