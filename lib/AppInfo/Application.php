@@ -105,6 +105,16 @@ class Application extends App implements IBootstrap {
 			// in case any errors happen when checking for the path do not apply redirect logic as it is only needed for the login
 		}
 		if ($isDefaultLogin && !$settings->getAllowMultipleUserBackEnds() && count($providers) === 1) {
+			// if the login page's redirect_url GET param is the logout page, just use the base URL instead
+			$logoutUrl = $urlGenerator->linkToRoute('core.login.logout');
+			$userOidcLogoutUrl = $urlGenerator->linkToRoute(self::APP_ID . '.login.singleLogoutService');
+			if (
+				$redirectUrl
+				&& (strpos($redirectUrl, $logoutUrl) !== false || strpos($redirectUrl, $userOidcLogoutUrl) !== false)
+			) {
+				$redirectUrl = $urlGenerator->getBaseUrl();
+			}
+
 			$targetUrl = $urlGenerator->linkToRoute(self::APP_ID . '.login.login', [
 				'providerId' => $providers[0]->getId(),
 				'redirectUrl' => $absoluteRedirectUrl
