@@ -615,17 +615,6 @@ class LoginController extends BaseOidcController {
 			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $user->getUID(), null, false));
 		}
 
-		// $storeLoginTokenEnabled = $this->appConfig->getValueString(Application::APP_ID, 'store_login_token', '0') === '1';
-		// if ($storeLoginTokenEnabled) {
-			// store all token information for potential token exchange requests
-			// $tokenData = array_merge(
-			// 	$data,
-			// 	['provider_id' => $providerId],
-			// );
-			// $this->tokenService->storeToken($tokenData);
-		// }
-		// $this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
-
 		// remove code login session values
 		$this->session->remove(self::STATE);
 		$this->session->remove(self::NONCE);
