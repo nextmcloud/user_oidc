@@ -335,6 +335,11 @@ class LoginController extends BaseOidcController {
 		$this->logger->debug('Code login with core: ' . $code . ' and state: ' . $state);
 
 		if ($error !== '') {
+			if (!$this->isMobileDevice()) {
+				$cancelRedirectUrl = $this->config->getSystemValue('user_oidc.cancel_redirect_url', 'https://cloud.telekom-dienste.de/');
+				return new RedirectResponse($cancelRedirectUrl);
+			}
+
 			$this->logger->warning('Code login error', ['error' => $error, 'error_description' => $error_description]);
 			if ($this->isDebugModeEnabled()) {
 				return new JSONResponse([
@@ -932,5 +937,21 @@ class LoginController extends BaseOidcController {
 		$s = str_replace('+', '-', $s); // 62nd char of encoding
 		$s = str_replace('/', '_', $s); // 63rd char of encoding
 		return $s;
+	}
+
+	private function isMobileDevice(): bool {
+		$mobileKeywords = $this->config->getSystemValue('user_oidc.mobile_keywords', ['Android', 'iPhone', 'iPad', 'iPod', 'Windows Phone', 'Mobile', 'webOS', 'BlackBerry', 'Opera Mini', 'IEMobile']);
+
+		if (!isset($_SERVER['HTTP_USER_AGENT'])) {
+			return false; // if no user-agent is set, assume desktop
+		}
+
+		foreach ($mobileKeywords as $keyword) {
+			if (stripos($_SERVER['HTTP_USER_AGENT'], $keyword) !== false) {
+				return true; // device is mobile
+			}
+		}
+
+		return false; // device is desktop
 	}
 }
