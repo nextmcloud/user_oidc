@@ -904,7 +904,7 @@ class LoginController extends BaseOidcController {
 				'error' => $error,
 				'error_description' => $description,
 			],
-			Http::STATUS_BAD_REQUEST,
+			Http::STATUS_OK,
 		);
 	}
 
