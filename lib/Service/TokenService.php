@@ -25,7 +25,6 @@ use OCP\Authentication\Exceptions\InvalidTokenException;
 use OCP\Authentication\Exceptions\WipeTokenException;
 use OCP\Authentication\Token\IToken;
 use OCP\EventDispatcher\IEventDispatcher;
-use OCP\Http\Client\IClient;
 use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IRequest;
@@ -46,8 +45,6 @@ class TokenService {
 
 	private const SESSION_TOKEN_KEY = Application::APP_ID . '-user-token';
 
-	private IClient $client;
-
 	public function __construct(
 		public HttpClientHelper $clientService,
 		private ISession $session,
@@ -64,7 +61,8 @@ class TokenService {
 		private DiscoveryService $discoveryService,
 		private ProviderMapper $providerMapper,
 	) {
-
+		// nothing else needed
+		// If you really need an IClient instance, inject it explicitly here and store it as a promoted property.
 	}
 
 	public function storeToken(array $tokenData): Token {
@@ -75,11 +73,6 @@ class TokenService {
 	}
 
 	/**
-	 * Get the token stored in the session
-	 * If it has expired: try to refresh it
-	 *
-	 * @param bool $refreshIfExpired
-	 * @return Token|null Return a token only if it is valid or has been successfully refreshed
 	 * @throws \JsonException
 	 */
 	public function getToken(bool $refreshIfExpired = true): ?Token {
@@ -91,16 +84,24 @@ class TokenService {
 		}
 
 		$token = new Token(json_decode($sessionData, true, 512, JSON_THROW_ON_ERROR));
+
 		// token is still valid
 		if (!$token->isExpired()) {
-			$this->logger->debug('[TokenService] getToken: token is still valid, it expires in ' . strval($token->getExpiresInFromNow()) . ' and refresh expires in ' . strval($token->getRefreshExpiresInFromNow()));
+			$this->logger->debug(
+				'[TokenService] getToken: token is still valid, it expires in ' .
+				(string)$token->getExpiresInFromNow() .
+				' and refresh expires in ' .
+				(string)$token->getRefreshExpiresInFromNow()
+			);
 			return $token;
 		}
 
-		// token has expired
-		// try to refresh the token if there is a refresh token and it is still valid
+		// token has expired -> try refresh
 		if ($refreshIfExpired && $token->getRefreshToken() !== null && !$token->refreshIsExpired()) {
-			$this->logger->debug('[TokenService] getToken: token is expired and refresh token is still valid, refresh expires in ' . strval($token->getRefreshExpiresInFromNow()));
+			$this->logger->debug(
+				'[TokenService] getToken: token is expired and refresh token is still valid, refresh expires in ' .
+				(string)$token->getRefreshExpiresInFromNow()
+			);
 			return $this->refresh($token);
 		}
 
@@ -109,9 +110,6 @@ class TokenService {
 	}
 
 	/**
-	 * Check to make sure the login token is still valid
-	 *
-	 * @return void
 	 * @throws \JsonException
 	 * @throws PreConditionNotMetException
 	 */
@@ -132,22 +130,20 @@ class TokenService {
 			return;
 		}
 
-		// Do not check the OIDC login token when not logged in via user_oidc (app password or direct login for example)
-		// Inspired from https://github.com/nextcloud/server/pull/43942/files#diff-c5cef03f925f97933ff9b3eb10217d21ef6516342e5628762756f1ba0469ac84R81-R92
 		try {
 			$sessionId = $this->session->getId();
 			$sessionAuthToken = $this->tokenProvider->getToken($sessionId);
 		} catch (SessionNotAvailableException|InvalidTokenException|WipeTokenException|ExpiredTokenException $e) {
-			// States we do not deal with here.
 			$this->logger->debug('[TokenService] checkLoginToken: error getting the session auth token', ['exception' => $e]);
 			return;
 		}
+
 		$scope = $sessionAuthToken->getScopeAsArray();
-		// since 30, we still support 29
+
 		if (defined(IToken::class . '::SCOPE_SKIP_PASSWORD_VALIDATION')
 			&& (
 				!isset($scope[IToken::SCOPE_SKIP_PASSWORD_VALIDATION])
-					|| $scope[IToken::SCOPE_SKIP_PASSWORD_VALIDATION] === false
+				|| $scope[IToken::SCOPE_SKIP_PASSWORD_VALIDATION] === false
 			)
 		) {
 			$this->logger->debug('[TokenService] checkLoginToken: most likely not using user_oidc, the session auth token does not have the "skip pwd validation" scope');
@@ -157,36 +153,31 @@ class TokenService {
 		$token = $this->getToken();
 		if ($token === null) {
 			$this->logger->debug('[TokenService] checkLoginToken: token is null');
-			// if we don't have a token but we had one once,
-			// it means the session (where we store the token) has died
-			// so we need to reauthenticate
 			$this->logger->debug('[TokenService] checkLoginToken: token is null and user had_token_once -> logout');
 			$this->userSession->logout();
 			return;
-		} elseif ($token->isExpired()) {
+		}
+		if ($token->isExpired()) {
 			$this->logger->debug('[TokenService] checkLoginToken: token is still expired -> reauthenticate');
-			// if the token is not valid, it means we couldn't refresh it so we need to reauthenticate to get a fresh token
 			$this->reauthenticate($token->getProviderId());
 			return;
 		}
+
 		$this->logger->debug('[TokenService] checkLoginToken: all good');
 	}
 
-	public function reauthenticate(int $providerId) {
-		// Logout the user and redirect to the oidc login flow to gather a fresh token
+	public function reauthenticate(int $providerId): void {
 		$this->userSession->logout();
 		$redirectUrl = $this->urlGenerator->linkToRouteAbsolute(Application::APP_ID . '.login.login', [
 			'providerId' => $providerId,
 			'redirectUrl' => $this->request->getRequestUri(),
 		]);
-		header('Location: ' . $redirectUrl);
 		$this->logger->debug('[TokenService] reauthenticate', ['redirectUrl' => $redirectUrl]);
+		header('Location: ' . $redirectUrl);
 		exit();
 	}
 
 	/**
-	 * @param Token $token
-	 * @return Token
 	 * @throws \JsonException
 	 * @throws DoesNotExistException
 	 * @throws MultipleObjectsReturnedException
@@ -201,9 +192,10 @@ class TokenService {
 				try {
 					$clientSecret = $this->crypto->decrypt($clientSecret);
 				} catch (\Exception $e) {
-					$this->logger->error('[TokenService] Failed to decrypt oidc client secret to refresh the token');
+					$this->logger->error('[TokenService] Failed to decrypt oidc client secret to refresh the token', ['exception' => $e]);
 				}
 			}
+
 			$this->logger->debug('[TokenService] Refreshing the token: ' . $discovery['token_endpoint']);
 			$body = $this->clientService->post(
 				$discovery['token_endpoint'],
@@ -214,24 +206,16 @@ class TokenService {
 					'refresh_token' => $token->getRefreshToken(),
 				]
 			);
-			$this->logger->debug('[TokenService] Token refresh request params', [
-				'client_id' => $oidcProvider->getClientId(),
-				// 'client_secret' => $clientSecret,
-				'grant_type' => 'refresh_token',
-				// 'refresh_token' => $token->getRefreshToken(),
-			]);
 
 			$bodyArray = json_decode(trim($body), true, 512, JSON_THROW_ON_ERROR);
 			$this->logger->debug('[TokenService] ---- Refresh token success');
-			return $this->storeToken(
-				array_merge(
-					$bodyArray,
-					['provider_id' => $token->getProviderId()],
-				)
-			);
-		} catch (\Exception $e) {
+
+			return $this->storeToken(array_merge(
+				$bodyArray,
+				['provider_id' => $token->getProviderId()],
+			));
+		} catch (\Throwable $e) {
 			$this->logger->error('[TokenService] Failed to refresh token ', ['exception' => $e]);
-			// Failed to refresh, return old token which will be retried or otherwise timeout if expired
 			return $token;
 		}
 	}
@@ -245,10 +229,6 @@ class TokenService {
 	}
 
 	/**
-	 * Exchange the login token for another audience (client ID)
-	 *
-	 * @param string $targetAudience
-	 * @return Token
 	 * @throws DoesNotExistException
 	 * @throws MultipleObjectsReturnedException
 	 * @throws TokenExchangeFailedException
@@ -262,6 +242,7 @@ class TokenService {
 				0,
 			);
 		}
+
 		$this->logger->debug('[TokenService] Starting token exchange');
 
 		$loginToken = $this->getToken();
@@ -273,8 +254,10 @@ class TokenService {
 			$this->logger->debug('[TokenService] Failed to exchange token, the login token is expired');
 			throw new TokenExchangeFailedException('Failed to exchange token, the login token is expired');
 		}
+
 		$oidcProvider = $this->providerMapper->getProvider($loginToken->getProviderId());
 		$discovery = $this->discoveryService->obtainDiscovery($oidcProvider);
+
 		$scope = $oidcProvider->getScope();
 		if (!empty($extraScopes)) {
 			$scope .= ' ' . implode(' ', $extraScopes);
@@ -286,55 +269,48 @@ class TokenService {
 				try {
 					$clientSecret = $this->crypto->decrypt($clientSecret);
 				} catch (\Exception $e) {
-					$this->logger->error('[TokenService] Token Exchange: Failed to decrypt oidc client secret');
+					$this->logger->error('[TokenService] Token Exchange: Failed to decrypt oidc client secret', ['exception' => $e]);
 				}
 			}
+
 			$this->logger->debug('[TokenService] Exchanging the token: ' . $discovery['token_endpoint']);
+
 			$tokenEndpointParams = [
 				'client_id' => $oidcProvider->getClientId(),
 				'client_secret' => $clientSecret,
 				'grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange',
 				'subject_token' => $loginToken->getAccessToken(),
 				'subject_token_type' => 'urn:ietf:params:oauth:token-type:access_token',
-				// can also be
-				// urn:ietf:params:oauth:token-type:access_token
-				// or urn:ietf:params:oauth:token-type:id_token
-				// this one will get us an access token and refresh token within the response
 				'requested_token_type' => 'urn:ietf:params:oauth:token-type:refresh_token',
 				'audience' => $targetAudience,
 				'scope' => $scope,
 			];
+
 			$oidcConfig = $this->config->getSystemValue('user_oidc', []);
 			if (isset($oidcConfig['prompt']) && is_string($oidcConfig['prompt'])) {
-				// none, consent, login and internal for oauth2 passport server
 				$tokenEndpointParams['prompt'] = $oidcConfig['prompt'];
 			}
-			// more in https://www.keycloak.org/securing-apps/token-exchange
+
 			$body = $this->clientService->post(
 				$discovery['token_endpoint'],
 				$tokenEndpointParams,
 			);
-			$this->logger->debug('[TokenService] Token exchange request params', [
-				'client_id' => $oidcProvider->getClientId(),
-				// 'client_secret' => $clientSecret,
-				'grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange',
-				// 'subject_token' => $loginToken->getAccessToken(),
-				'subject_token_type' => 'urn:ietf:params:oauth:token-type:access_token',
-				'requested_token_type' => 'urn:ietf:params:oauth:token-type:refresh_token',
-				'audience' => $targetAudience,
-			]);
 
 			$bodyArray = json_decode(trim($body), true, 512, JSON_THROW_ON_ERROR);
-			$this->logger->debug('[TokenService] Token exchange success: "' . trim($body) . '"');
+
 			$tokenData = array_merge(
 				$bodyArray,
 				['provider_id' => $loginToken->getProviderId()],
 			);
+
 			return new Token($tokenData);
 		} catch (ClientException|ServerException $e) {
 			$response = $e->getResponse();
 			$body = (string)$response->getBody();
-			$this->logger->error('[TokenService] Failed to exchange token, client/server error in the exchange request', ['response_body' => $body, 'exception' => $e]);
+			$this->logger->error('[TokenService] Failed to exchange token, client/server error in the exchange request', [
+				'response_body' => $body,
+				'exception' => $e,
+			]);
 
 			$parsedBody = json_decode(trim($body), true);
 			if (is_array($parsedBody) && isset($parsedBody['error'], $parsedBody['error_description'])) {
@@ -345,26 +321,19 @@ class TokenService {
 					$parsedBody['error'],
 					$parsedBody['error_description'],
 				);
-			} else {
-				throw new TokenExchangeFailedException(
-					'Failed to exchange token, client/server error in the exchange request: ' . $body,
-					0,
-					$e,
-				);
 			}
-		} catch (\Exception|\Throwable $e) {
+
+			throw new TokenExchangeFailedException(
+				'Failed to exchange token, client/server error in the exchange request: ' . $body,
+				0,
+				$e,
+			);
+		} catch (\Throwable $e) {
 			$this->logger->error('[TokenService] Failed to exchange token ', ['exception' => $e]);
 			throw new TokenExchangeFailedException('Failed to exchange token, error in the exchange request', 0, $e);
 		}
 	}
 
-	/**
-	 * Try to get a token from the Oidc provider app for a user and a specific audience (client ID)
-	 *
-	 * @param string $userId
-	 * @param string $targetAudience
-	 * @return Token|null
-	 */
 	public function getTokenFromOidcProviderApp(string $userId, string $targetAudience, array $extraScopes = [], string $resource = ''): ?Token {
 		if (!class_exists(\OCA\OIDCIdentityProvider\AppInfo\Application::class)) {
 			$this->logger->warning('[TokenService] Failed to get token from Oidc provider app, oidc app is not installed');
@@ -383,12 +352,13 @@ class TokenService {
 			$scope = implode(' ', $extraScopes);
 			$generationEvent = new \OCA\OIDCIdentityProvider\Event\TokenGenerationRequestEvent($targetAudience, $userId, $scope, $resource);
 			$this->eventDispatcher->dispatchTyped($generationEvent);
+
 			if ($generationEvent->getAccessToken() === null || $generationEvent->getIdToken() === null) {
 				$this->logger->debug('[TokenService] The Oidc provider app did not generate any access/id token');
 				return null;
 			}
-		} catch (\Exception|\Throwable $e) {
-			$this->logger->debug('[TokenService] The Oidc provider app failed to generate a token');
+		} catch (\Throwable $e) {
+			$this->logger->debug('[TokenService] The Oidc provider app failed to generate a token', ['exception' => $e]);
 			return null;
 		}
 
@@ -397,7 +367,6 @@ class TokenService {
 			'id_token' => $generationEvent->getIdToken(),
 			'refresh_token' => $generationEvent->getRefreshToken(),
 			'expires_in' => $generationEvent->getExpiresIn(),
-			// the getRefreshExpiresIn method will appear after oidc v1.4.0, see https://github.com/H2CK/oidc/pull/530
 			'refresh_expires_in' => method_exists($generationEvent, 'getRefreshExpiresIn')
 				? $generationEvent->getRefreshExpiresIn()
 				: $generationEvent->getExpiresIn(),
