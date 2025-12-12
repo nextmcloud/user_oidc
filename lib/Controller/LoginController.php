@@ -24,6 +24,7 @@ use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\OIDCService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\ProvisioningDeniedException;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\SettingsService;
 use OCA\UserOIDC\Service\TokenService;
@@ -171,12 +172,26 @@ class LoginController extends BaseOidcController {
 			return $this->buildErrorTemplateResponse($message, Http::STATUS_NOT_FOUND, ['reason' => 'provider unreachable']);
 		}
 
-		$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$this->session->set(self::STATE, $state);
-		$this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
+		// $state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+		// $this->session->set(self::STATE, $state);
+		// $this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
 
-		$nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$this->session->set(self::NONCE, $nonce);
+		// $nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+		// $this->session->set(self::NONCE, $nonce);
+
+		// check if oidc state is present in session data
+		if ($this->session->exists(self::STATE)) {
+			$state = $this->session->get(self::STATE);
+			$nonce = $this->session->get(self::NONCE);
+		} else {
+			$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+			$this->session->set(self::STATE, $state);
+			$this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
+
+			$nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
+			$this->session->set(self::NONCE, $nonce);
+			$this->session->set(self::PROVIDERID, $providerId);
+		}
 
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
 		$isPkceSupported = in_array('S256', $discovery['code_challenge_methods_supported'] ?? [], true);
@@ -188,7 +203,7 @@ class LoginController extends BaseOidcController {
 			$this->session->set(self::CODE_VERIFIER, $code_verifier);
 		}
 
-		$this->session->set(self::PROVIDERID, $providerId);
+		// $this->session->set(self::PROVIDERID, $providerId);
 		$this->session->close();
 
 		// get attribute mapping settings
@@ -321,6 +336,11 @@ class LoginController extends BaseOidcController {
 		$this->logger->debug('Code login with core: ' . $code . ' and state: ' . $state);
 
 		if ($error !== '') {
+			if (!$this->isMobileDevice()) {
+				$cancelRedirectUrl = $this->config->getSystemValue('user_oidc.cancel_redirect_url', 'https://cloud.telekom-dienste.de/');
+				return new RedirectResponse($cancelRedirectUrl);
+			}
+
 			$this->logger->warning('Code login error', ['error' => $error, 'error_description' => $error_description]);
 			if ($this->isDebugModeEnabled()) {
 				return new JSONResponse([
@@ -554,6 +574,24 @@ class LoginController extends BaseOidcController {
 		}
 
 		if ($autoProvisionAllowed) {
+			$user = null;
+
+			try {
+				// use potential user from other backend, create it in our backend if it does not exist
+				$user = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $existingUser);
+			} catch (ProvisioningDeniedException $denied) {
+				// TODO: MagentaCLOUD should upstream the exception handling
+				$redirectUrl = $denied->getRedirectUrl();
+				if ($redirectUrl === null) {
+					$message = $this->l10n->t('Failed to provision user');
+					return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => $denied->getMessage()]);
+				} else {
+					// error response is a redirect, e.g. to a booking site
+					// so that you can immediately get the registration page
+					return new RedirectResponse($redirectUrl);
+				}
+			}
+
 			if (!$softAutoProvisionAllowed && $existingUser !== null && $existingUser->getBackendClassName() !== Application::APP_ID) {
 				// if soft auto-provisioning is disabled,
 				// we refuse login for a user that already exists in another backend
@@ -601,16 +639,9 @@ class LoginController extends BaseOidcController {
 			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $user->getUID(), null, false));
 		}
 
-		$storeLoginTokenEnabled = $this->appConfig->getValueString(Application::APP_ID, 'store_login_token', '0', lazy: true) === '1';
-		if ($storeLoginTokenEnabled) {
-			// store all token information for potential token exchange requests
-			$tokenData = array_merge(
-				$data,
-				['provider_id' => $providerId],
-			);
-			$this->tokenService->storeToken($tokenData);
-		}
-		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
+		// remove code login session values
+		$this->session->remove(self::STATE);
+		$this->session->remove(self::NONCE);
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
@@ -619,7 +650,7 @@ class LoginController extends BaseOidcController {
 		try {
 			$authToken = $this->authTokenProvider->getToken($this->session->getId());
 			$this->sessionMapper->createOrUpdateSession(
-				$idTokenPayload->sid ?? 'fallback-sid',
+				$idTokenPayload->{'urn:telekom.com:session_token'} ?? 'fallback-sid',
 				$idTokenPayload->sub ?? 'fallback-sub',
 				$idTokenPayload->iss ?? 'fallback-iss',
 				$authToken->getId(),
@@ -897,8 +928,24 @@ class LoginController extends BaseOidcController {
 				'error' => $error,
 				'error_description' => $description,
 			],
-			Http::STATUS_BAD_REQUEST,
+			Http::STATUS_OK,
 		);
+	}
+
+	/**
+	 * Backward compatible function for MagentaCLOUD to smoothly transition to new config
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 * @BruteForceProtection(action=userOidcBackchannelLogout)
+	 *
+	 * @param string $logout_token
+	 * @return JSONResponse
+	 * @throws Exception
+	 * @throws \JsonException
+	 */
+	public function telekomBackChannelLogout(string $logout_token = '') {
+		return $this->backChannelLogout('Telekom', $logout_token);
 	}
 
 	private function toCodeChallenge(string $data): string {
@@ -909,5 +956,21 @@ class LoginController extends BaseOidcController {
 		$s = str_replace('+', '-', $s); // 62nd char of encoding
 		$s = str_replace('/', '_', $s); // 63rd char of encoding
 		return $s;
+	}
+
+	private function isMobileDevice(): bool {
+		$mobileKeywords = $this->config->getSystemValue('user_oidc.mobile_keywords', ['Android', 'iPhone', 'iPad', 'iPod', 'Windows Phone', 'Mobile', 'webOS', 'BlackBerry', 'Opera Mini', 'IEMobile']);
+
+		if (!isset($_SERVER['HTTP_USER_AGENT'])) {
+			return false; // if no user-agent is set, assume desktop
+		}
+
+		foreach ($mobileKeywords as $keyword) {
+			if (stripos($_SERVER['HTTP_USER_AGENT'], $keyword) !== false) {
+				return true; // device is mobile
+			}
+		}
+
+		return false; // device is desktop
 	}
 }

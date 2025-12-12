@@ -31,7 +31,17 @@
   "require": {
     "id4me/id4me-rp": "^1.2",
     "firebase/php-jwt": "^6.8.1",
-    "bamarni/composer-bin-plugin": "^1.4"
+    "bamarni/composer-bin-plugin": "^1.4",
+    "web-token/jwt-core": "^2.0",
+    "web-token/jwt-encryption": "^2.2",
+    "web-token/jwt-signature": "^2.2",
+    "web-token/jwt-encryption-algorithm-aescbc": "^2.2",
+    "web-token/jwt-encryption-algorithm-ecdh-es": "^2.2",
+    "web-token/jwt-encryption-algorithm-rsa": "^2.2",
+    "web-token/jwt-encryption-algorithm-pbes2": "^2.2",
+    "web-token/jwt-signature-algorithm-hmac": "^2.2",
+    "web-token/jwt-signature-algorithm-rsa": "^2.2",
+    "web-token/jwt-util-ecc": "^2.2"
   },
   "require-dev": {
     "nextcloud/coding-standard": "^1.0.0",
