@@ -2,11 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * SPDX-FileCopyrightText: 2016 Nextcloud GmbH and Nextcloud contributors
- * SPDX-License-Identifier: AGPL-3.0-or-later
- */
-
 use OCP\App\IAppManager;
 use OCP\Server;
 
@@ -18,9 +13,25 @@ require_once __DIR__ . '/../../../lib/base.php';
 require_once __DIR__ . '/../../../tests/autoload.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 
-\OC::$loader->addValidRoot(OC::$SERVERROOT . '/tests');
-\OC::$composerAutoloader->addPsr4('OCA\\UserOIDC\\BaseTest\\', dirname(__FILE__) . '/unit/MagentaCloud/', true);
+/**
+ * Register test namespace via Composer autoload instead of OC::$loader
+ */
+$composerAutoloader = require __DIR__ . '/../vendor/autoload.php';
 
+$composerAutoloader->addPsr4(
+	'OCA\\UserOIDC\\BaseTest\\',
+	__DIR__ . '/unit/MagentaCloud/',
+	true
+);
+
+/**
+ * Load app
+ */
 Server::get(IAppManager::class)->loadApp('user_oidc');
 
-OC_Hook::clear();
+/**
+ * Cleanup hooks
+ */
+if (class_exists(\OC_Hook::class)) {
+	\OC_Hook::clear();
+}
