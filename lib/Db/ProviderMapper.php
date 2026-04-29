@@ -75,14 +75,14 @@ class ProviderMapper extends QBMapper {
 	 * @throws MultipleObjectsReturnedException
 	 */
 	public function createOrUpdateProvider(
-		string $identifier,
+		?string $identifier = null,
 		?string $clientId = null,
 		?string $clientSecret = null,
 		?string $discoveryUri = null,
 		string $scope = 'openid email profile',
-		?string $bearersecret = null,
 		?string $endSessionEndpointUri = null,
 		?string $postLogoutUri = null,
+		?string $bearersecret = null,
 	): Provider {
 		try {
 			$provider = $this->findProviderByIdentifier($identifier);

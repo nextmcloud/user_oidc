@@ -269,7 +269,7 @@ class UpsertProvider extends Base {
 		}
 		try {
 			$provider = $this->providerMapper->createOrUpdateProvider(
-				$identifier, $clientid, $clientsecret, $discoveryuri, $scope, $endsessionendpointuri, $postLogoutUri, $bearersecret
+				$identifier, $clientId, $clientSecret, $discoveryuri, $scope, $endsessionendpointuri, $postLogoutUri, $bearersecret
 			);
 			// invalidate JWKS cache (even if it was just created)
 			$this->providerService->setSetting($provider->getId(), ProviderService::SETTING_JWKS_CACHE, '');

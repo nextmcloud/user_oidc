@@ -180,7 +180,8 @@ class SettingsController extends OCSController {
 			$provider->setClientSecret($encryptedClientSecret);
 		}
 		if ($bearerSecret) {
-			$provider->setBearerSecret($this->base64UrlEncode($bearerSecret));
+			$encryptedBearerSecret = $this->crypto->encrypt($this->base64UrlEncode($bearerSecret));
+			$provider->setBearerSecret($encryptedBearerSecret);
 		}
 		$provider->setDiscoveryEndpoint($discoveryEndpoint);
 		$provider->setEndSessionEndpoint($endSessionEndpoint ?: null);
