@@ -83,8 +83,8 @@ class LoginController extends BaseOidcController {
 	// this id token is used to send id_token_hint to the IdP logout endpoint
 	private const ID_TOKEN = 'oidc.id_token';
 
-	// we consider that a login flow should complete within 5 minutes
-	private const LOGIN_FLOW_TIMEOUT = 300;
+	// we consider that a login flow should complete within 6 minutes
+	private const LOGIN_FLOW_TIMEOUT = 360;
 
 	public function __construct(
 		IRequest $request,
