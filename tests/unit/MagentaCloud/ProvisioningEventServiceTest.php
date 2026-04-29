@@ -1,4 +1,5 @@
 <?php
+
 /*
  * @copyright Copyright (c) 2021 T-Systems International
  *
@@ -62,7 +63,7 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 	 */
 	protected function getConfigSetup() :MockObject {
 		$config = $this->getMockForAbstractClass(IConfig::class);
-	
+
 		$config->expects($this->any())
 			->method('getSystemValue')
 			->with($this->logicalOr($this->equalTo('user_oidc'), $this->equalTo('secret')))
@@ -77,7 +78,7 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 			}));
 		return $config;
 	}
-	
+
 	/**
 	 * Prepare a proper session as if the handshake with an
 	 * OpenID authenticator entity has already been done.
@@ -255,14 +256,14 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 			$this->app->getContainer()->get(IAvatarManager::class),
 			$this->app->getContainer()->get(IConfig::class));
 		// here is where the token magic comes in
-		$this->token = [ 'id_token' =>
-							$this->createSignToken($this->getRealOidClaims(),
+		$this->token = [ 'id_token'
+							=> $this->createSignToken($this->getRealOidClaims(),
 								$this->getOidServerKey())];
 		$this->tokenResponse = $this->getMockForAbstractClass(IResponse::class);
 		$this->tokenResponse->expects($this->once())
 			->method('getBody')
 			->willReturn(json_encode($this->token));
-		
+
 		// mock token retrieval
 		$this->client = $this->getMockForAbstractClass(IClient::class);
 		$this->client->expects($this->once())
@@ -273,8 +274,8 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 		$this->clientService->expects($this->once())
 			->method('newClient')
 			->willReturn($this->client);
-		$this->registrationContext =
-						$this->app->getContainer()->get(Coordinator::class)->getRegistrationContext();
+		$this->registrationContext
+						= $this->app->getContainer()->get(Coordinator::class)->getRegistrationContext();
 		$this->loginController = new LoginController($this->request,
 			$this->providerMapper,
 			$this->providerService,
@@ -335,14 +336,14 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 
 	protected function assertLoginRedirect($result) {
 		$this->assertInstanceOf(RedirectResponse::class,
-			$result, 'LoginController->code() did not end with success redirect: Status: ' .
-						strval($result->getStatus() . ' ' . json_encode($result->getThrottleMetadata())));
+			$result, 'LoginController->code() did not end with success redirect: Status: '
+						. strval($result->getStatus() . ' ' . json_encode($result->getThrottleMetadata())));
 	}
 
 	protected function assertLogin403($result) {
 		$this->assertInstanceOf(TemplateResponse::class,
-			$result, 'LoginController->code() did not end with 403 Forbidden: Actual status: ' .
-						strval($result->getStatus() . ' ' . json_encode($result->getThrottleMetadata())));
+			$result, 'LoginController->code() did not end with 403 Forbidden: Actual status: '
+						. strval($result->getStatus() . ' ' . json_encode($result->getThrottleMetadata())));
 	}
 
 	/**
@@ -375,8 +376,8 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 	public function testUidNoMapEvent_AccessOk() {
 		$this->mockAssertLoginSuccess();
 		$this->attributeListener = function (Event $event): void {
-			if ($event instanceof AttributeMappedEvent &&
-				$event->getAttribute() == ProviderService::SETTING_MAPPING_UID) {
+			if ($event instanceof AttributeMappedEvent
+				&& $event->getAttribute() == ProviderService::SETTING_MAPPING_UID) {
 				$this->fail('UID event mapping not supported');
 			}
 		};
@@ -404,8 +405,8 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 	 */
 	public function testDisplaynameMapEvent_NOk_NoRedirect() {
 		$this->attributeListener = function (Event $event): void {
-			if ($event instanceof AttributeMappedEvent &&
-				$event->getAttribute() == ProviderService::SETTING_MAPPING_DISPLAYNAME) {
+			if ($event instanceof AttributeMappedEvent
+				&& $event->getAttribute() == ProviderService::SETTING_MAPPING_DISPLAYNAME) {
 				$event->setValue('Lisa, Mona');
 			}
 		};
@@ -426,13 +427,13 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 
 	public function testMainEmailMap_Nok_Redirect() {
 		$this->attributeListener = function (Event $event): void {
-			if ($event instanceof AttributeMappedEvent &&
-				$event->getAttribute() == ProviderService::SETTING_MAPPING_EMAIL) {
+			if ($event instanceof AttributeMappedEvent
+				&& $event->getAttribute() == ProviderService::SETTING_MAPPING_EMAIL) {
 				//$defaultUID = $event->getValue();
 				$event->setValue('mona.lisa@louvre.fr');
 			}
 		};
-		
+
 		$this->accountListener = function (Event $event) :void {
 			$this->assertInstanceOf(UserAccountChangeEvent::class, $event);
 			$this->assertEquals('jgyros', $event->getUid());

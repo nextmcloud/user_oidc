@@ -1,4 +1,5 @@
 <?php
+
 /*
  * @copyright Copyright (c) 2021 T-Systems International
  *

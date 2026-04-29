@@ -120,7 +120,7 @@ class OpenidTokenTestCase extends TestCase {
 			'nonce' => 'CVMI8I3JZPALSL5DIM6I1PDP8SDSEN4K',
 			'aud' => ['USER_NC_OPENID_TEST'] ];
 	}
-		
+
 	protected function createSignToken(array $claims) : string {
 		// The algorithm manager with the HS256 algorithm.
 		$algorithmManager = new AlgorithmManager([

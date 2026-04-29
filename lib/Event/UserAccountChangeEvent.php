@@ -1,4 +1,5 @@
 <?php
+
 /*
  * @copyright Copyright (c) 2023 T-Systems International
  *
@@ -46,7 +47,7 @@ class UserAccountChangeEvent extends Event {
 		?string $mainEmail,
 		?string $quota,
 		object $claims,
-		bool $accessAllowed = false
+		bool $accessAllowed = false,
 	) {
 		parent::__construct();
 		$this->uid = $uid;
