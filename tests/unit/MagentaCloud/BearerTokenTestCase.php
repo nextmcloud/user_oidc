@@ -142,7 +142,7 @@ class BearerTokenTestCase extends TestCase {
 					'value' => '1']],
 			'urn:telekom.com:idm:at:version' => '1.0'];
 	}
-		
+
 	protected function signToken(array $claims, string $signKey, bool $invalidate = false) : JWS {
 		// The algorithm manager with the HS256 algorithm.
 		$algorithmManager = new AlgorithmManager([

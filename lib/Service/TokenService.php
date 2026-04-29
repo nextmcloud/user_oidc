@@ -106,10 +106,10 @@ class TokenService {
 				return $this->refresh($token);
 			}
 			$this->logger->debug(
-				'[TokenService] getToken: token is still valid, it expires in ' .
-				(string)$token->getExpiresInFromNow() .
-				' and refresh expires in ' .
-				(string)$token->getRefreshExpiresInFromNow()
+				'[TokenService] getToken: token is still valid, it expires in '
+				. (string)$token->getExpiresInFromNow()
+				. ' and refresh expires in '
+				. (string)$token->getRefreshExpiresInFromNow()
 			);
 			return $token;
 		}
@@ -117,8 +117,8 @@ class TokenService {
 		// token has expired -> try refresh
 		if ($refreshIfExpired && $token->getRefreshToken() !== null && !$token->refreshIsExpired()) {
 			$this->logger->debug(
-				'[TokenService] getToken: token is expired and refresh token is still valid, refresh expires in ' .
-				(string)$token->getRefreshExpiresInFromNow()
+				'[TokenService] getToken: token is expired and refresh token is still valid, refresh expires in '
+				. (string)$token->getRefreshExpiresInFromNow()
 			);
 			return $this->refresh($token);
 		}

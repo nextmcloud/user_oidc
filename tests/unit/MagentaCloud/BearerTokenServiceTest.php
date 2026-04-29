@@ -1,4 +1,5 @@
 <?php
+
 /*
  * @copyright Copyright (c) 2021 T-Systems International
  *
@@ -57,7 +58,7 @@ class BearerTokenServiceTest extends TestCase {
 		$serializerManager = new \Jose\Component\Signature\Serializer\JWSSerializerManager([
 			new \Jose\Component\Signature\Serializer\CompactSerializer()
 		]);
-		
+
 		$decodedToken = $this->tokenService->decryptToken($testtoken, $this->access_secret);
 		$this->tokenService->verifySignature($decodedToken, $this->access_secret);
 		$claims = $this->tokenService->decode($decodedToken);
@@ -69,7 +70,7 @@ class BearerTokenServiceTest extends TestCase {
 		$serializerManager = new \Jose\Component\Signature\Serializer\JWSSerializerManager([
 			new \Jose\Component\Signature\Serializer\CompactSerializer()
 		]);
-	
+
 		$decodedToken = $this->tokenService->decryptToken($testtoken, $this->access_secret);
 		$this->tokenService->verifySignature($decodedToken, $this->access_secret);
 		$claims = $this->tokenService->decode($decodedToken);
@@ -96,7 +97,7 @@ class BearerTokenServiceTest extends TestCase {
 		$serializerManager = new \Jose\Component\Signature\Serializer\JWSSerializerManager([
 			new \Jose\Component\Signature\Serializer\CompactSerializer()
 		]);
-		
+
 		$decodedToken = $this->tokenService->decryptToken($testtoken, $this->access_secret);
 		$this->tokenService->verifySignature($decodedToken, $this->access_secret);
 	}

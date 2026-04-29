@@ -79,7 +79,7 @@ class MBackend extends AbstractOidcBackend {
 		parent::__construct($config, $userMapper, $logger, $request, $session,
 			$urlGenerator, $eventDispatcher, $discoveryService,
 			$providerMapper, $providerService, $userManager);
-	
+
 		$this->mtokenService = $mtokenService;
 		$this->provisioningService = $provisioningService;
 		$this->crypto = $crypto;
@@ -153,15 +153,15 @@ class MBackend extends AbstractOidcBackend {
 					$this->logger->debug('No extractable user id, check mapping!');
 					return '';
 				}
-	
+
 				// check bearercache here, not skipping validation for security reasons
-	
+
 				// Telekom bearer does not support refersh_token, so the pupose of TokenValidatedEvent is not given,
 				// but could produce trouble if not send with the field, apart from performance aspects.
 				//
 				// $discovery = $this->discoveryService->obtainDiscovery($provider);
 				// $this->eventDispatcher->dispatchTyped(new TokenValidatedEvent(['token' => $payload], $provider, $discovery));
-	
+
 				try {
 					$this->provisioningService->provisionUser($userId, $provider->getId(), $payload);
 					$this->checkFirstLogin($userId); // create the folders same as on web login
