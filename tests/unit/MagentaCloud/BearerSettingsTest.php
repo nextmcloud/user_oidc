@@ -1,4 +1,5 @@
 <?php
+
 /*
  * @copyright Copyright (c) 2021 T-Systems International
  *
@@ -207,7 +208,7 @@ class BearerSettingsTest extends TestCase {
 		$provider->expects($this->any())
 			->method('getScope')
 			->willReturn($scope);
-										
+
 		return $provider;
 	}
 
@@ -303,7 +304,7 @@ class BearerSettingsTest extends TestCase {
 			'openid email profile',
 			null,
 			[]);
- 
+
 		$command = new UpsertProvider($this->providerService, $this->providerMapper, $this->crypto);
 		$commandTester = new CommandTester($command);
 
@@ -329,7 +330,7 @@ class BearerSettingsTest extends TestCase {
 			'openid email profile',
 			'***bearersecret***',
 			[]);
- 
+
 
 		$command = new UpsertProvider($this->providerService, $this->providerMapper, $this->crypto);
 		$commandTester = new CommandTester($command);
@@ -381,7 +382,7 @@ class BearerSettingsTest extends TestCase {
 			'openid profile',
 			'***bearersecret***',
 			[]);
- 
+
 
 		$command = new UpsertProvider($this->providerService, $this->providerMapper, $this->crypto);
 		$commandTester = new CommandTester($command);
@@ -408,7 +409,7 @@ class BearerSettingsTest extends TestCase {
 			'openid email profile',
 			null,
 			['provider-2-' . ProviderService::SETTING_UNIQUE_UID => '1']);
- 
+
 		$command = new UpsertProvider($this->providerService, $this->providerMapper, $this->crypto);
 		$commandTester = new CommandTester($command);
 
