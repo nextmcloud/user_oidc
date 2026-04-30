@@ -18,6 +18,7 @@ use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\Service\ProvisioningService;
+use OCA\UserOIDC\User\BearerValidationResult;
 use OCA\UserOIDC\User\Validator\IBearerTokenValidator;
 use OCA\UserOIDC\User\Validator\SelfEncodedValidator;
 use OCA\UserOIDC\User\Validator\UserInfoValidator;
@@ -243,167 +244,156 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	 */
 	public function getCurrentUserId(): string {
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
-		$ncOidcProviderBearerValidation = isset($oidcSystemConfig['oidc_provider_bearer_validation']) && $oidcSystemConfig['oidc_provider_bearer_validation'] === true;
 
 		$providers = $this->providerMapper->getProviders();
-		if (count($providers) === 0 && !$ncOidcProviderBearerValidation) {
-			$this->logger->debug('no OIDC providers and no NC provider validation');
+		if (count($providers) === 0) {
+			$this->logger->debug('no OIDC providers');
 			return '';
 		}
 
-		// get the bearer token from headers
 		$headerToken = $this->request->getHeader(Application::OIDC_API_REQ_HEADER);
 		if (!str_starts_with($headerToken, 'bearer ') && !str_starts_with($headerToken, 'Bearer ')) {
 			$this->logger->debug('No Bearer token');
 			return '';
 		}
+
 		$headerToken = preg_replace('/^bearer\s+/i', '', $headerToken);
-		if ($headerToken === '') {
+		if ($headerToken === null || $headerToken === '') {
 			$this->logger->debug('No Bearer token');
 			return '';
 		}
 
-		// check if we should use UserInfoValidator (default is false)
-		if (!isset($oidcSystemConfig['userinfo_bearer_validation']) || !$oidcSystemConfig['userinfo_bearer_validation']) {
-			if (($key = array_search(UserInfoValidator::class, $this->tokenValidators)) !== false) {
-				unset($this->tokenValidators[$key]);
-			}
-		}
-		// check if we should use SelfEncodedValidator (default is true)
-		if (isset($oidcSystemConfig['selfencoded_bearer_validation']) && !$oidcSystemConfig['selfencoded_bearer_validation']) {
-			if (($key = array_search(SelfEncodedValidator::class, $this->tokenValidators)) !== false) {
-				unset($this->tokenValidators[$key]);
-			}
-		}
-
-		// check if we should ask the OIDC Identity Provider app (app_id: oidc) to validate the token (default is false)
-		if ($ncOidcProviderBearerValidation) {
-			if (class_exists(\OCA\OIDCIdentityProvider\Event\TokenValidationRequestEvent::class)) {
-				try {
-					$validationEvent = new \OCA\OIDCIdentityProvider\Event\TokenValidationRequestEvent($headerToken);
-					$this->eventDispatcher->dispatchTyped($validationEvent);
-					$oidcProviderUserId = $validationEvent->getUserId();
-					if ($oidcProviderUserId !== null) {
-						return $oidcProviderUserId;
-					} else {
-						$this->logger->debug('[NextcloudOidcProviderValidator] The bearer token validation has failed');
-					}
-				} catch (\Exception|\Throwable $e) {
-					$this->logger->debug('[NextcloudOidcProviderValidator] The bearer token validation has crashed', ['exception' => $e]);
-				}
-			} else {
-				$this->logger->debug('[NextcloudOidcProviderValidator] Impossible to validate bearer token with Nextcloud Oidc provider, OCA\OIDCIdentityProvider\Event\TokenValidationRequestEvent class not found');
-			}
-		} else {
-			$this->logger->debug('[NextcloudOidcProviderValidator] oidc_provider_bearer_validation is false or not defined');
-		}
-
 		$autoProvisionAllowed = (!isset($oidcSystemConfig['auto_provision']) || $oidcSystemConfig['auto_provision']);
 
-		// try to validate with all providers
 		foreach ($providers as $provider) {
-			if ($this->providerService->getSetting($provider->getId(), ProviderService::SETTING_CHECK_BEARER, '0') === '1') {
-				// find user id through different token validation methods
-				foreach ($this->tokenValidators as $validatorClass) {
-					/** @var IBearerTokenValidator $validator */
-					$validator = Server::get($validatorClass);
-					try {
-						$tokenUserId = $validator->isValidBearerToken($provider, $headerToken);
-					} catch (Throwable|Exception $e) {
-						$this->logger->debug('Failed to validate the bearer token', ['exception' => $e]);
-						$tokenUserId = null;
-					}
-					if ($tokenUserId) {
-						$this->logger->debug(
-							'Token validated with ' . $validatorClass . ' by provider: ' . $provider->getId()
-								. ' (' . $provider->getIdentifier() . ')'
-						);
-						// prevent login of users that are not in a whitelisted group (if activated)
-						$restrictLoginToGroups = $this->providerService->getSetting($provider->getId(), ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS, '0');
-						if ($restrictLoginToGroups === '1') {
-							$tokenAttributes = $validator->getUserAttributes($provider, $headerToken);
-							$syncGroups = $this->provisioningService->getSyncGroupsOfToken($provider->getId(), $tokenAttributes);
+			if ($this->providerService->getSetting($provider->getId(), ProviderService::SETTING_CHECK_BEARER, '0') !== '1') {
+				continue;
+			}
 
-							if ($syncGroups === null || count($syncGroups) === 0) {
-								$this->logger->debug('Prevented user from using a bearer token as user is not part of a whitelisted group');
-								return '';
-							}
-						}
-						$discovery = $this->discoveryService->obtainDiscovery($provider);
-						$this->eventDispatcher->dispatchTyped(new TokenValidatedEvent(['token' => $headerToken], $provider, $discovery));
+			$validationResult = $this->validateBearerToken($provider, $headerToken);
+			if ($validationResult === null) {
+				continue;
+			}
 
-						if ($autoProvisionAllowed) {
-							// look for user in other backends
-							if (!$this->userManager->userExists($tokenUserId)) {
-								$this->userManager->search($tokenUserId);
-								$this->ldapService->syncUser($tokenUserId);
-							}
-							$existingUser = $this->userManager->get($tokenUserId);
-							if ($existingUser !== null && $this->ldapService->isLdapDeletedUser($existingUser)) {
-								$existingUser = null;
-							}
+			$tokenUserId = $validationResult->userId;
+			$tokenAttributes = $validationResult->payload;
 
-							$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
-							if (!$softAutoProvisionAllowed && $existingUser !== null && $existingUser->getBackendClassName() !== Application::APP_ID) {
-								// if soft auto-provisioning is disabled,
-								// we refuse login for a user that already exists in another backend
-								return '';
-							}
-							if ($existingUser === null) {
-								// only create the user in our backend if the user does not exist in another backend
-								$backendUser = $this->userMapper->getOrCreate($provider->getId(), $tokenUserId);
-								$userId = $backendUser->getUserId();
-							} else {
-								$userId = $existingUser->getUID();
-							}
+			$restrictLoginToGroups = $this->providerService->getSetting($provider->getId(), ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS, '0');
+			if ($restrictLoginToGroups === '1') {
+				$syncGroups = $this->provisioningService->getSyncGroupsOfToken($provider->getId(), $tokenAttributes);
 
-							$this->checkFirstLogin($userId);
-
-							if ($this->providerService->getSetting($provider->getId(), ProviderService::SETTING_BEARER_PROVISIONING, '0') === '1') {
-								$provisioningStrategy = $validator->getProvisioningStrategy();
-								if ($provisioningStrategy) {
-									$this->provisionUser($validator->getProvisioningStrategy(), $provider, $tokenUserId, $headerToken, $existingUser);
-								}
-							}
-
-							$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
-							$this->setSessionUser($userId);
-							return $userId;
-						} elseif ($this->userExists($tokenUserId)) {
-							$this->checkFirstLogin($tokenUserId);
-							$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
-							$this->setSessionUser($tokenUserId);
-							return $tokenUserId;
-						} else {
-							// check if the user exists locally
-							// if not, this potentially triggers a user_ldap search
-							// to get the user if it has not been synced yet
-							if (!$this->userManager->userExists($tokenUserId)) {
-								$this->userManager->search($tokenUserId);
-								$this->ldapService->syncUser($tokenUserId);
-
-								// return nothing, if the user was not found after the user_ldap search
-								if (!$this->userManager->userExists($tokenUserId)) {
-									return '';
-								}
-							}
-
-							$user = $this->userManager->get($tokenUserId);
-							if ($user === null || $this->ldapService->isLdapDeletedUser($user)) {
-								return '';
-							}
-							$this->checkFirstLogin($tokenUserId);
-							$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
-							$this->setSessionUser($tokenUserId);
-							return $tokenUserId;
-						}
-					}
+				if ($syncGroups === null || count($syncGroups) === 0) {
+					$this->logger->debug('Prevented user from using a bearer token as user is not part of a whitelisted group');
+					return '';
 				}
 			}
+
+			$discovery = $this->discoveryService->obtainDiscovery($provider);
+			$this->eventDispatcher->dispatchTyped(new TokenValidatedEvent(['token' => $headerToken], $provider, $discovery));
+
+			if ($autoProvisionAllowed) {
+				if (!$this->userManager->userExists($tokenUserId)) {
+					$this->userManager->search($tokenUserId);
+					$this->ldapService->syncUser($tokenUserId);
+				}
+
+				$existingUser = $this->userManager->get($tokenUserId);
+				if ($existingUser !== null && $this->ldapService->isLdapDeletedUser($existingUser)) {
+					$existingUser = null;
+				}
+
+				$softAutoProvisionAllowed = (!isset($oidcSystemConfig['soft_auto_provision']) || $oidcSystemConfig['soft_auto_provision']);
+				if (!$softAutoProvisionAllowed && $existingUser !== null && $existingUser->getBackendClassName() !== Application::APP_ID) {
+					return '';
+				}
+
+				$provisioningResult = $this->provisioningService->provisionUser(
+					$tokenUserId,
+					$provider->getId(),
+					is_object($tokenAttributes) ? $tokenAttributes : (object)$tokenAttributes,
+					$existingUser,
+				);
+
+				$user = $provisioningResult['user'] ?? null;
+				if ($user === null) {
+					return '';
+				}
+
+				$userId = $user->getUID();
+
+				$this->checkFirstLogin($userId);
+				$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
+				$this->setSessionUser($userId);
+
+				return $userId;
+			}
+
+			if ($this->userExists($tokenUserId)) {
+				$this->checkFirstLogin($tokenUserId);
+				$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
+				$this->setSessionUser($tokenUserId);
+
+				return $tokenUserId;
+			}
+
+			if (!$this->userManager->userExists($tokenUserId)) {
+				$this->userManager->search($tokenUserId);
+				$this->ldapService->syncUser($tokenUserId);
+
+				if (!$this->userManager->userExists($tokenUserId)) {
+					return '';
+				}
+			}
+
+			$user = $this->userManager->get($tokenUserId);
+			if ($user === null || $this->ldapService->isLdapDeletedUser($user)) {
+				return '';
+			}
+
+			$this->checkFirstLogin($tokenUserId);
+			$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
+			$this->setSessionUser($tokenUserId);
+
+			return $tokenUserId;
 		}
 
 		$this->logger->debug('Could not find unique token validation');
 		return '';
+	}
+
+	protected function validateBearerToken(Provider $provider, string $headerToken): ?BearerValidationResult {
+		foreach ($this->tokenValidators as $validatorClass) {
+			/** @var IBearerTokenValidator $validator */
+			$validator = Server::get($validatorClass);
+
+			try {
+				$tokenUserId = $validator->isValidBearerToken($provider, $headerToken);
+			} catch (Throwable|Exception $e) {
+				$this->logger->debug('Failed to validate the bearer token', ['exception' => $e]);
+				continue;
+			}
+
+			if (!$this->isAcceptableUserId($tokenUserId)) {
+				continue;
+			}
+
+			$payload = [];
+
+			try {
+				$payload = $validator->getUserAttributes($provider, $headerToken);
+			} catch (Throwable $e) {
+				$this->logger->debug('Failed to get bearer token attributes', ['exception' => $e]);
+			}
+
+			$this->logger->debug(
+				'Token validated with ' . $validatorClass . ' by provider: ' . $provider->getId()
+					. ' (' . $provider->getIdentifier() . ')'
+			);
+
+			return new BearerValidationResult($tokenUserId, $payload);
+		}
+
+		return null;
 	}
 
 	/**
@@ -411,7 +401,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	 * Used as a lightweight sanity check on user IDs returned by token validators
 	 * before any database lookup or provisioning takes place.
 	 */
-	private function isAcceptableUserId(mixed $userId): bool {
+	protected function isAcceptableUserId(mixed $userId): bool {
 		return is_string($userId) && $userId !== '' && trim($userId) !== '';
 	}
 
