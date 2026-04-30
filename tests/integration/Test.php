@@ -89,7 +89,7 @@ class Test extends \Test\TestCase {
 		$headersRedirect = $response->getHeader(RedirectMiddleware::HISTORY_HEADER);
 		self::assertStringStartsWith($this->oidcIdp, $headersRedirect[0]);
 
-		$response = $this->loginToKeycloak($headersRedirect[0], 'keycloak1', 'keycloak1');
+		$response = $this->loginToKeycloakResponse($response, 'keycloak1', 'keycloak1');
 		$headersRedirect = $response->getHeader(RedirectMiddleware::HISTORY_HEADER);
 		$userId = $this->getUserHtmlData($response)['userId'];
 		self::assertStringStartsWith($this->baseUrl . '/index.php/apps/user_oidc/code?', $headersRedirect[0]);
@@ -117,6 +117,43 @@ class Test extends \Test\TestCase {
 		$url = $form->getAttribute('action');
 		libxml_clear_errors();
 		return $this->client->post($url, ['form_params' => ['username' => $username, 'password' => $password, 'credentialId' => '']]);
+	}
+
+	private function loginToKeycloakResponse($response, string $username, string $password) {
+		$content = $response->getBody()->getContents();
+
+		$doc = new DOMDocument();
+		@$doc->loadHTML($content);
+		$selector = new DOMXpath($doc);
+
+		$form = $selector->query('//form')->item(0);
+		self::assertNotNull($form, 'No login form found in Keycloak response');
+
+		$url = html_entity_decode($form->getAttribute('action'), ENT_QUOTES | ENT_HTML5);
+
+		$formParams = [
+			'username' => $username,
+			'password' => $password,
+			'credentialId' => '',
+		];
+
+		foreach ($selector->query('//form//input') as $input) {
+			/** @var DOMElement $input */
+			$name = $input->getAttribute('name');
+			if ($name === '') {
+				continue;
+			}
+
+			if (!array_key_exists($name, $formParams)) {
+				$formParams[$name] = $input->getAttribute('value');
+			}
+		}
+
+		libxml_clear_errors();
+
+		return $this->client->post($url, [
+			'form_params' => $formParams,
+		]);
 	}
 
 	private function getUserHtmlData($response) {
@@ -155,7 +192,7 @@ class Test extends \Test\TestCase {
 
 		$response = $this->client->get($this->baseUrl . '/index.php/apps/user_oidc/login/1');
 		$headersRedirect = $response->getHeader(RedirectMiddleware::HISTORY_HEADER);
-		$response = $this->loginToKeycloak($headersRedirect[0], 'keycloak1', 'keycloak1');
+		$response = $this->loginToKeycloakResponse($response, 'keycloak1', 'keycloak1');
 		$status = $response->getStatusCode();
 		self::assertEquals($status, 200);
 		$userHtmlData = $this->getUserHtmlData($response);
@@ -207,7 +244,7 @@ class Test extends \Test\TestCase {
 
 		$response = $this->client->get($this->baseUrl . '/index.php/apps/user_oidc/login/1');
 		$headersRedirect = $response->getHeader(RedirectMiddleware::HISTORY_HEADER);
-		$response = $this->loginToKeycloak($headersRedirect[0], 'keycloak1', 'keycloak1');
+		$response = $this->loginToKeycloakResponse($response, 'keycloak1', 'keycloak1');
 		$userId = $this->getUserHtmlData($response)['userId'];
 		self::assertEquals($userId, 'aea81860-b25c-4f75-b9b5-9d632c3ba06f');
 	}
@@ -218,7 +255,7 @@ class Test extends \Test\TestCase {
 
 		$response = $this->client->get($this->baseUrl . '/index.php/apps/user_oidc/login/1');
 		$headersRedirect = $response->getHeader(RedirectMiddleware::HISTORY_HEADER);
-		$response = $this->loginToKeycloak($headersRedirect[0], 'keycloak1', 'keycloak1');
+		$response = $this->loginToKeycloakResponse($response, 'keycloak1', 'keycloak1');
 		$userId = $this->getUserHtmlData($response)['userId'];
 		self::assertEquals($userId, 'keycloak1');
 	}
@@ -228,7 +265,7 @@ class Test extends \Test\TestCase {
 
 		$response = $this->client->get($this->baseUrl . '/index.php/apps/user_oidc/login/1');
 		$headersRedirect = $response->getHeader(RedirectMiddleware::HISTORY_HEADER);
-		$response = $this->loginToKeycloak($headersRedirect[0], 'keycloak1', 'keycloak1');
+		$response = $this->loginToKeycloakResponse($response, 'keycloak1', 'keycloak1');
 		$userId = $this->getUserHtmlData($response)['userId'];
 		self::assertEquals($userId, hash('sha256', '1_0_keycloak1'));
 	}
