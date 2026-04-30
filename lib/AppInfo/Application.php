@@ -76,13 +76,19 @@ class Application extends App implements IBootstrap {
 
 	public function boot(IBootContext $context): void {
 		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
-		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 
-		$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
+		/** @var IUserSession $userSession */
+		$userSession = $this->getContainer()->get(IUserSession::class);
+		if ($userSession->isLoggedIn()) {
+			return;
+		}
 
+		// Wichtig: erst Login-Button registrieren
 		$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 
+		// Danach erst Redirect-Logik
 		$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
+		$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
 	}
 
 	private function checkLoginToken(TokenService $tokenService): void {
@@ -92,8 +98,11 @@ class Application extends App implements IBootstrap {
 	/**
 	 * This is the automatic redirect exclusively for Nextcloud/Magentacloud clients completely skipping consent layer
 	 */
-	private function registerNmcClientFlow(NmcClientFlowRedirectService $service): void {
-		if ($this->request->getPathInfo() !== '/login/flow') {
+	private function registerNmcClientFlow(
+		IRequest $request,
+		NmcClientFlowRedirectService $service,
+	): void {
+		if ($request->getPathInfo() !== '/login/flow') {
 			return;
 		}
 
