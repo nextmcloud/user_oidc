@@ -62,9 +62,9 @@ class Application extends App implements IBootstrap {
 		include_once __DIR__ . '/../../vendor/autoload.php';
 
 		// override registration of provisioning srevice to use event-based solution
-		$this->getContainer()->registerService(ProvisioningService::class, function (ContainerInterface $c): ProvisioningService {
-			return $c->get(ProvisioningEventService::class);
-		});
+		// $this->getContainer()->registerService(ProvisioningService::class, function (ContainerInterface $c): ProvisioningService {
+			// return $c->get(ProvisioningEventService::class);
+		// });
 
 		/** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
