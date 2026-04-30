@@ -71,7 +71,9 @@ class Application extends App implements IBootstrap {
 			$context->registerEventListener(\OCP\Authentication\Events\TokenInvalidatedEvent::class, TokenInvalidatedListener::class);
 		}
 
-		$context->registerAlternativeLoginProvider(AlternativeLoginProvider::class);
+		if (version_compare($config->getSystemValueString('version', '0.0.0'), '34.0.0', '>=')) {
+			$context->registerAlternativeLoginProvider(AlternativeLoginProvider::class);
+		}
 	}
 
 	public function boot(IBootContext $context): void {
@@ -83,10 +85,15 @@ class Application extends App implements IBootstrap {
 			return;
 		}
 
-		// Wichtig: erst Login-Button registrieren
-		$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
+		$config = $this->getContainer()->get(IConfig::class);
+		$ncVersion = $config->getSystemValueString('version', '0.0.0');
 
-		// Danach erst Redirect-Logik
+		// Wichtig für ältere NC-Versionen in PHP 8.2/8.3 Matrix
+		if (version_compare($ncVersion, '34.0.0', '<')) {
+			$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
+		}
+
+		// Danach erst Redirects
 		$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 		$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
 	}
