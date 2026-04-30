@@ -35,7 +35,6 @@ use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
-use OCP\IUserSession;
 use Throwable;
 
 class Application extends App implements IBootstrap {
