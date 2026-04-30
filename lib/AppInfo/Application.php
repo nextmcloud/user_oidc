@@ -83,12 +83,7 @@ class Application extends App implements IBootstrap {
 		}
 
 		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
-
-		/** @var IUserSession $userSession */
-		$userSession = $this->getContainer()->get(IUserSession::class);
-		if ($userSession->isLoggedIn()) {
-			return;
-		}
+		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 
 		try {
 			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
@@ -99,6 +94,10 @@ class Application extends App implements IBootstrap {
 			}
 		} catch (Throwable $e) {
 		}
+	}
+
+	private function checkLoginToken(TokenService $tokenService): void {
+		$tokenService->checkLoginToken();
 	}
 
 	/**
