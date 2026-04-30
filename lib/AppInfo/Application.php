@@ -131,7 +131,7 @@ class Application extends App implements IBootstrap {
 			&& RequestClassificationService::isTopLevelHtmlNavigation($request)
 			&& !$settings->getAllowMultipleUserBackEnds()
 		) {
-			$providers = $this->getCachedProviders($providerMapper);
+			$providers = $providerMapper->getProviders();
 			if (count($providers) === 1) {
 				$targetUrl = $urlGenerator->linkToRoute(self::APP_ID . '.login.login', [
 					'providerId' => $providers[0]->getId(),
@@ -148,7 +148,7 @@ class Application extends App implements IBootstrap {
 	): void {
 		$redirectUrl = $request->getParam('redirect_url');
 		$absoluteRedirectUrl = !empty($redirectUrl) ? $urlGenerator->getAbsoluteURL($redirectUrl) : $redirectUrl;
-		$providers = $this->getCachedProviders($providerMapper);
+		$providers = $providerMapper->getProviders();
 		$customLoginLabel = $config->getSystemValue('user_oidc', [])['login_label'] ?? '';
 		foreach ($providers as $provider) {
 			// FIXME: Move to IAlternativeLogin but requires boot due to db connection
