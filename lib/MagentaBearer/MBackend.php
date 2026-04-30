@@ -1,11 +1,8 @@
-<?php
-
-declare(strict_types=1);
-
 namespace OCA\UserOIDC\MagentaBearer;
 
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\Provider;
+use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\User\Backend;
 use OCA\UserOIDC\User\BearerValidationResult;
 
@@ -23,6 +20,12 @@ class MBackend extends Backend {
 
 	protected function validateBearerToken(Provider $provider, string $headerToken): ?BearerValidationResult {
 		try {
+			$headerToken = preg_replace('/^\s*bearer\s+/i', '', $headerToken) ?? '';
+
+			if ($headerToken === '') {
+				return null;
+			}
+
 			$sharedSecret = $this->crypto->decrypt($provider->getBearerSecret());
 
 			$bearerToken = $this->magentaTokenService->decryptToken($headerToken, $sharedSecret);
