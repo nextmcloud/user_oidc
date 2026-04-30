@@ -1,3 +1,7 @@
+<?php
+
+declare(strict_types=1);
+
 namespace OCA\UserOIDC\MagentaBearer;
 
 use OCA\UserOIDC\AppInfo\Application;
