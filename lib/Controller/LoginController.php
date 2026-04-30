@@ -1002,17 +1002,6 @@ class LoginController extends BaseOidcController {
 		);
 	}
 
-	/**
-	 * Backward compatible function for MagentaCLOUD to smoothly transition to new config
-	 *
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 * @BruteForceProtection(action: 'userOidcBackchannelLogout')
-	 */
-	public function telekomBackChannelLogout(string $logout_token = ''): JSONResponse {
-		return $this->backChannelLogout('Telekom', $logout_token);
-	}
-
 	private function toCodeChallenge(string $data): string {
 		// Basically one big work around for the base64url decode being weird
 		$h = pack('H*', hash('sha256', $data));
@@ -1033,5 +1022,16 @@ class LoginController extends BaseOidcController {
 		$this->session->remove(self::REDIRECT_AFTER_LOGIN . $sessionKeySuffix);
 		$this->session->remove(self::CODE_VERIFIER . $sessionKeySuffix);
 		$this->session->remove(self::TIMESTAMP . $sessionKeySuffix);
+	}
+
+	/**
+	 * Backward compatible function for MagentaCLOUD to smoothly transition to new config
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 * @BruteForceProtection(action: 'userOidcBackchannelLogout')
+	 */
+	public function telekomBackChannelLogout(string $logout_token = ''): JSONResponse {
+		return $this->backChannelLogout('Telekom', $logout_token);
 	}
 }
