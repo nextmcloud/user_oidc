@@ -25,7 +25,11 @@ class NmcClientFlowRedirectService {
 	}
 
 	public function handle(): void {
-		if ($this->request->getPathInfo() !== '/login/flow') {
+		try {
+			if ($this->request->getPathInfo() !== '/login/flow') {
+				return;
+			}
+		} catch (\Throwable $e) {
 			return;
 		}
 

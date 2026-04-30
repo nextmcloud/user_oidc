@@ -86,16 +86,28 @@ class Application extends App implements IBootstrap {
 		}
 
 		$config = $this->getContainer()->get(IConfig::class);
-		$ncVersion = $config->getSystemValueString('version', '0.0.0');
+		$version = $config->getSystemValueString('version', '0.0.0');
 
-		// Wichtig für ältere NC-Versionen in PHP 8.2/8.3 Matrix
-		if (version_compare($ncVersion, '34.0.0', '<')) {
-			$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
+		// Wichtig: alter Login-Button für NC < 34 muss unabhängig funktionieren
+		if (version_compare($version, '34.0.0', '<')) {
+			try {
+				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
+			} catch (Throwable $e) {
+				error_log('user_oidc registerLogin failed: ' . $e->getMessage());
+			}
 		}
 
-		// Danach erst Redirects
-		$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
-		$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
+		try {
+			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
+		} catch (Throwable $e) {
+			error_log('user_oidc registerRedirect failed: ' . $e->getMessage());
+		}
+
+		try {
+			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
+		} catch (Throwable $e) {
+			error_log('user_oidc registerNmcClientFlow failed: ' . $e->getMessage());
+		}
 	}
 
 	private function checkLoginToken(TokenService $tokenService): void {
