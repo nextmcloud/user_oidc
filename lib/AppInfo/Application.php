@@ -114,7 +114,7 @@ class Application extends App implements IBootstrap {
 			}
 
 			// this is the custom auto-redirect for MagentaCLOUD client access
-			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
+			// $context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 		} catch (Throwable $e) {
 		}
 	}

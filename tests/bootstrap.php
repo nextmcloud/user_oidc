@@ -32,6 +32,6 @@ Server::get(IAppManager::class)->loadApp('user_oidc');
 /**
  * Cleanup hooks
  */
-if (class_exists(\OC_Hook::class)) {
-	\OC_Hook::clear();
-}
+// if (class_exists(\OC_Hook::class)) {
+	// \OC_Hook::clear();
+// }
