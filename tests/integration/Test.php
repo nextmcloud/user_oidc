@@ -130,6 +130,7 @@ class Test extends \Test\TestCase {
 		self::assertNotNull($form, 'No login form found in Keycloak response');
 
 		$url = html_entity_decode($form->getAttribute('action'), ENT_QUOTES | ENT_HTML5);
+		$url = str_replace('&amp;', '&', $url);
 
 		$formParams = [
 			'username' => $username,
