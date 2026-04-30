@@ -26,6 +26,7 @@ use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\NmcClientFlowRedirectService;
 use OCA\UserOIDC\Service\RequestClassificationService;
 use OCA\UserOIDC\Service\SettingsService;
+use OCA\UserOIDC\Service\TokenService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -35,6 +36,7 @@ use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
+use OCP\IUserSession;
 use Throwable;
 
 class Application extends App implements IBootstrap {
@@ -77,7 +79,11 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function boot(IBootContext $context): void {
-		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
+		if ($this->backend !== null) {
+			$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
+		}
+
+		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 
 		/** @var IUserSession $userSession */
 		$userSession = $this->getContainer()->get(IUserSession::class);
@@ -85,28 +91,16 @@ class Application extends App implements IBootstrap {
 			return;
 		}
 
-		$config = $this->getContainer()->get(IConfig::class);
-		$version = $config->getSystemValueString('version', '0.0.0');
-
-		// Wichtig: alter Login-Button für NC < 34 muss unabhängig funktionieren
-		if (version_compare($version, '34.0.0', '<')) {
-			try {
-				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
-			} catch (Throwable $e) {
-				error_log('user_oidc registerLogin failed: ' . $e->getMessage());
-			}
-		}
-
 		try {
 			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
-		} catch (Throwable $e) {
-			error_log('user_oidc registerRedirect failed: ' . $e->getMessage());
-		}
 
-		try {
+			if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
+				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
+			}
+
 			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 		} catch (Throwable $e) {
-			error_log('user_oidc registerNmcClientFlow failed: ' . $e->getMessage());
+			error_log('user_oidc boot failed: ' . $e->getMessage());
 		}
 	}
 
@@ -117,14 +111,7 @@ class Application extends App implements IBootstrap {
 	/**
 	 * This is the automatic redirect exclusively for Nextcloud/Magentacloud clients completely skipping consent layer
 	 */
-	private function registerNmcClientFlow(
-		IRequest $request,
-		NmcClientFlowRedirectService $service,
-	): void {
-		if ($request->getPathInfo() !== '/login/flow') {
-			return;
-		}
-
+	private function registerNmcClientFlow(NmcClientFlowRedirectService $service): void {
 		$service->handle();
 	}
 
