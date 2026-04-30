@@ -71,9 +71,7 @@ class Application extends App implements IBootstrap {
 			$context->registerEventListener(\OCP\Authentication\Events\TokenInvalidatedEvent::class, TokenInvalidatedListener::class);
 		}
 
-		if (version_compare($config->getSystemValueString('version', '0.0.0'), '34.0.0', '>=')) {
-			$context->registerAlternativeLoginProvider(AlternativeLoginProvider::class);
-		}
+		$context->registerAlternativeLoginProvider(AlternativeLoginProvider::class);
 	}
 
 	public function boot(IBootContext $context): void {
@@ -82,9 +80,7 @@ class Application extends App implements IBootstrap {
 
 		$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
 
-		if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
-			$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
-		}
+		$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 
 		$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 	}
