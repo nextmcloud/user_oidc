@@ -77,29 +77,16 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function boot(IBootContext $context): void {
-		if ($this->backend === null) {
-			$this->backend = $this->getContainer()->get(MBackend::class);
-		}
-
 		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
 		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 
-		try {
-			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
-		} catch (Throwable $e) {
+		$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
+
+		if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
+			$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 		}
 
-		try {
-			if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
-				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
-			}
-		} catch (Throwable $e) {
-		}
-
-		try {
-			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
-		} catch (Throwable $e) {
-		}
+		$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 	}
 
 	private function checkLoginToken(TokenService $tokenService): void {

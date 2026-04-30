@@ -25,6 +25,10 @@ class NmcClientFlowRedirectService {
 	}
 
 	public function handle(): void {
+		if ($this->request->getPathInfo() !== '/login/flow') {
+			return;
+		}
+
 		if ($this->userSession->isLoggedIn()) {
 			return;
 		}
