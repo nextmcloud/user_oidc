@@ -24,8 +24,6 @@ use OCA\UserOIDC\Listener\TokenInvalidatedListener;
 use OCA\UserOIDC\MagentaBearer\MBackend;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\NmcClientFlowRedirectService;
-use OCA\UserOIDC\Service\ProvisioningEventService;
-use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\RequestClassificationService;
 use OCA\UserOIDC\Service\SettingsService;
 use OCP\AppFramework\App;
@@ -38,9 +36,6 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
-
-// this is needed only for the special, shortened client login flow
-use Psr\Container\ContainerInterface;
 use Throwable;
 
 class Application extends App implements IBootstrap {
@@ -55,11 +50,6 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
-		// Telekom-specific provisioning implementation
-		$this->getContainer()->registerService(ProvisioningService::class, function (ContainerInterface $c): ProvisioningService {
-			return $c->get(ProvisioningEventService::class);
-		});
-
 		/** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
