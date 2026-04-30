@@ -93,6 +93,10 @@ class Application extends App implements IBootstrap {
 	 * This is the automatic redirect exclusively for Nextcloud/Magentacloud clients completely skipping consent layer
 	 */
 	private function registerNmcClientFlow(NmcClientFlowRedirectService $service): void {
+		if ($this->request->getPathInfo() !== '/login/flow') {
+			return;
+		}
+
 		$service->handle();
 	}
 
