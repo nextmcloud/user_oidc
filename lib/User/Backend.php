@@ -14,6 +14,7 @@ use OCA\UserOIDC\Db\Provider;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\TokenValidatedEvent;
+use OCA\UserOIDC\MagentaBearer\TokenService as MagentaTokenService;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
@@ -32,6 +33,7 @@ use OCP\Files\IRootFolder;
 use OCP\Files\ISetupManager;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
+use OCP\Security\ICrypto;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\ISession;
@@ -73,6 +75,8 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 		private LdapService $ldapService,
 		private IUserManager $userManager,
 		private ITimeFactory $timeFactory,
+		protected ICrypto $crypto,
+		protected MagentaTokenService $magentaTokenService,
 	) {
 	}
 
