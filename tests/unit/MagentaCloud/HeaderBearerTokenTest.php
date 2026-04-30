@@ -26,28 +26,25 @@ declare(strict_types=1);
 
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\BaseTest\BearerTokenTestCase;
-
 use OCA\UserOIDC\Db\Provider;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\MagentaBearer\MBackend;
 use OCA\UserOIDC\MagentaBearer\TokenService;
 use OCA\UserOIDC\Service\DiscoveryService;
+use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
-
-use OCA\UserOIDC\Service\ProvisioningEventService;
+use OCA\UserOIDC\Service\ProvisioningService;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\EventDispatcher\IEventDispatcher;
-
+use OCP\Security\ICrypto;
 use OCP\IConfig;
-
-//use OCA\UserOIDC\Db\User;
 use OCP\IRequest;
 use OCP\ISession;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserManager;
 
-use OCP\Security\ICrypto;
 use Psr\Log\LoggerInterface;
 
 class HeaderBearerTokenTest extends BearerTokenTestCase {
@@ -115,18 +112,16 @@ class HeaderBearerTokenTest extends BearerTokenTestCase {
 		$this->providerService = $this->createMock(ProviderService::class);
 		$this->providerService->expects($this->any())
 			->method('getSetting')
-			->with($this->anything(), $this->logicalOr($this->equalTo(ProviderService::SETTING_CHECK_BEARER),
-				$this->equalTo(ProviderService::SETTING_MAPPING_UID)))
-			->willReturnCallback(function ($id, $field, $default) :string {
-				if ($field === ProviderService::SETTING_MAPPING_UID) {
-					return 'sub';
-				} elseif ($field === ProviderService::SETTING_CHECK_BEARER) {
-					return '1';
-				} else {
-					return '';
-				}
+			->with($this->anything(), $this->anything(), $this->anything())
+			->willReturnCallback(function ($id, $field, $default): string {
+				return match ($field) {
+					ProviderService::SETTING_MAPPING_UID => 'sub',
+					ProviderService::SETTING_CHECK_BEARER => '1',
+					ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS => '0',
+					ProviderService::SETTING_BEARER_PROVISIONING => '0',
+					default => $default,
+				};
 			});
-
 
 		$user = $this->createMock(IUser::class);
 		$user->expects($this->any())
@@ -138,31 +133,52 @@ class HeaderBearerTokenTest extends BearerTokenTestCase {
 		$user->expects($this->any())
 			->method('getEMailAddress')
 			->willReturn('nmc01@ver.sul.t-online.de');
+		$user->expects($this->any())
+			->method('getLastLogin')
+			->willReturn(1234567890);
+		$user->expects($this->any())
+			->method('updateLastLoginTimestamp')
+			->willReturn(true);
 
 		$userManager = $this->createMock(IUserManager::class);
 		$userManager->expects($this->any())
 			->method('get')
 			->willReturn($user);
 
-		$provisioningService = $this->createMock(ProvisioningEventService::class);
+		$provisioningService = $this->createMock(ProvisioningService::class);
 		$provisioningService->expects($this->any())
 			->method('provisionUser')
-			->willReturn($user);
+			->willReturn([
+				'user' => $user,
+				'userData' => [],
+			]);
 
-		$this->backend = new MBackend($app->getContainer()->get(IConfig::class),
+		$discoveryService = $this->createMock(DiscoveryService::class);
+		$discoveryService->expects($this->any())
+			->method('obtainDiscovery')
+			->willReturn([
+				'issuer' => 'https://accounts.login00.idm.ver.sul.t-online.de',
+				'token_endpoint' => 'https://example.invalid/token',
+			]);
+
+		$this->backend = new MBackend(
+			$app->getContainer()->get(IConfig::class),
 			$app->getContainer()->get(UserMapper::class),
 			$app->getContainer()->get(LoggerInterface::class),
 			$this->requestMock,
 			$app->getContainer()->get(ISession::class),
 			$app->getContainer()->get(IURLGenerator::class),
 			$app->getContainer()->get(IEventDispatcher::class),
-			$app->getContainer()->get(DiscoveryService::class),
+			$discoveryService,
 			$this->providerMapper,
 			$this->providerService,
+			$provisioningService,
+			$app->getContainer()->get(LdapService::class),
 			$userManager,
+			$app->getContainer()->get(ITimeFactory::class),
 			$crypto,
 			$app->getContainer()->get(TokenService::class),
-			$provisioningService);
+		);
 	}
 
 	public function testValidSignature() {

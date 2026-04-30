@@ -61,22 +61,22 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	];
 
 	public function __construct(
-		private IConfig $config,
-		private UserMapper $userMapper,
-		private LoggerInterface $logger,
-		private IRequest $request,
-		private ISession $session,
-		private IURLGenerator $urlGenerator,
-		private IEventDispatcher $eventDispatcher,
-		private DiscoveryService $discoveryService,
-		private ProviderMapper $providerMapper,
-		private ProviderService $providerService,
-		private ProvisioningService $provisioningService,
-		private LdapService $ldapService,
-		private IUserManager $userManager,
-		private ITimeFactory $timeFactory,
+		protected IConfig $config,
+		protected UserMapper $userMapper,
+		protected LoggerInterface $logger,
+		protected IRequest $request,
+		protected ISession $session,
+		protected IURLGenerator $urlGenerator,
+		protected IEventDispatcher $eventDispatcher,
+		protected DiscoveryService $discoveryService,
+		protected ProviderMapper $providerMapper,
+		protected ProviderService $providerService,
+		protected ProvisioningService $provisioningService,
+		protected LdapService $ldapService,
+		protected IUserManager $userManager,
+		protected ITimeFactory $timeFactory,
 		protected ICrypto $crypto,
-		protected MagentaTokenService $magentaTokenService,
+		protected \OCA\UserOIDC\MagentaBearer\TokenService $magentaTokenService,
 	) {
 	}
 

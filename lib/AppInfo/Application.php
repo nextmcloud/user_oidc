@@ -42,8 +42,8 @@ class Application extends App implements IBootstrap {
 	public const APP_ID = 'user_oidc';
 	public const OIDC_API_REQ_HEADER = 'Authorization';
 
-	private $backend;
-	private $cachedProviders;
+	private ?MBackend $backend = null;
+	private ?array $cachedProviders = null;
 
 	public function __construct(array $urlParams = []) {
 		parent::__construct(self::APP_ID, $urlParams);
@@ -78,6 +78,10 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function boot(IBootContext $context): void {
+		if ($this->backend === null) {
+			$this->backend = $this->getContainer()->get(MBackend::class);
+		}
+
 		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
 
 		/** @var IUserSession $userSession */
