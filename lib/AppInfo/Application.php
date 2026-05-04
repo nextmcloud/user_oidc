@@ -21,11 +21,12 @@ use OCA\UserOIDC\Listener\ExternalTokenRequestedListener;
 use OCA\UserOIDC\Listener\InternalTokenRequestedListener;
 use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\Listener\TokenInvalidatedListener;
+use OCA\UserOIDC\MagentaBearer\MBackend;
 use OCA\UserOIDC\Service\ID4MeService;
+use OCA\UserOIDC\Service\NmcClientFlowRedirectService;
 use OCA\UserOIDC\Service\RequestClassificationService;
 use OCA\UserOIDC\Service\SettingsService;
 use OCA\UserOIDC\Service\TokenService;
-use OCA\UserOIDC\User\Backend;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -42,8 +43,8 @@ class Application extends App implements IBootstrap {
 	public const APP_ID = 'user_oidc';
 	public const OIDC_API_REQ_HEADER = 'Authorization';
 
-	private $backend;
-	private $cachedProviders;
+	private ?MBackend $backend = null;
+	private ?array $cachedProviders = null;
 
 	public function __construct(array $urlParams = []) {
 		parent::__construct(self::APP_ID, $urlParams);
@@ -53,8 +54,8 @@ class Application extends App implements IBootstrap {
 		/** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
-		/* Register our own user backend */
-		$this->backend = $this->getContainer()->get(Backend::class);
+		// Register Telekom bearer-capable backend
+		$this->backend = $this->getContainer()->get(MBackend::class);
 
 		$config = $this->getContainer()->get(IConfig::class);
 		if (version_compare($config->getSystemValueString('version', '0.0.0'), '32.0.0', '>=')) {
@@ -84,7 +85,7 @@ class Application extends App implements IBootstrap {
 
 	public function boot(IBootContext $context): void {
 		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
-		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
+		// $context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 		/** @var IUserSession $userSession */
 		$userSession = $this->getContainer()->get(IUserSession::class);
 		if ($userSession->isLoggedIn()) {
@@ -96,12 +97,21 @@ class Application extends App implements IBootstrap {
 			if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
 				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 			}
+			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 		} catch (Throwable $e) {
+			error_log('user_oidc boot failed: ' . $e->getMessage());
 		}
 	}
 
 	private function checkLoginToken(TokenService $tokenService): void {
 		$tokenService->checkLoginToken();
+	}
+
+	/**
+	 * This is the automatic redirect exclusively for Nextcloud/Magentacloud clients completely skipping consent layer
+	 */
+	private function registerNmcClientFlow(NmcClientFlowRedirectService $service): void {
+		$service->handle();
 	}
 
 	private function registerRedirect(IRequest $request, IURLGenerator $urlGenerator, SettingsService $settings, ProviderMapper $providerMapper): void {
