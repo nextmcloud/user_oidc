@@ -83,8 +83,8 @@ class LoginController extends BaseOidcController {
 	// this id token is used to send id_token_hint to the IdP logout endpoint
 	private const ID_TOKEN = 'oidc.id_token';
 
-	// we consider that a login flow should complete within 5 minutes
-	private const LOGIN_FLOW_TIMEOUT = 300;
+	// we consider that a login flow should complete within 6 minutes
+	private const LOGIN_FLOW_TIMEOUT = 360;
 
 	public function __construct(
 		IRequest $request,
@@ -707,17 +707,6 @@ class LoginController extends BaseOidcController {
 			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $userId, null, false));
 		}
 
-		$storeLoginTokenEnabled = $this->appConfig->getValueString(Application::APP_ID, 'store_login_token', '0', lazy: true) === '1';
-		if ($storeLoginTokenEnabled) {
-			// store all token information for potential token exchange requests
-			$tokenData = array_merge(
-				$data,
-				['provider_id' => $providerId],
-			);
-			$this->tokenService->storeToken($tokenData);
-		}
-		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
-
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
 		$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
 
@@ -725,7 +714,7 @@ class LoginController extends BaseOidcController {
 		try {
 			$authToken = $this->authTokenProvider->getToken($this->session->getId());
 			$this->sessionMapper->createOrUpdateSession(
-				$idTokenPayload->sid ?? 'fallback-sid',
+				$idTokenPayload->{'urn:telekom.com:session_token'} ?? 'fallback-sid',
 				$idTokenPayload->sub ?? 'fallback-sub',
 				$idTokenPayload->iss ?? 'fallback-iss',
 				$authToken->getId(),
@@ -1054,5 +1043,16 @@ class LoginController extends BaseOidcController {
 		$this->session->remove(self::REDIRECT_AFTER_LOGIN . $sessionKeySuffix);
 		$this->session->remove(self::CODE_VERIFIER . $sessionKeySuffix);
 		$this->session->remove(self::TIMESTAMP . $sessionKeySuffix);
+	}
+
+	/**
+	 * Backward compatible function for MagentaCLOUD to smoothly transition to new config
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 * @BruteForceProtection(action: 'userOidcBackchannelLogout')
+	 */
+	public function telekomBackChannelLogout(string $logout_token = ''): JSONResponse {
+		return $this->backChannelLogout('Telekom', $logout_token);
 	}
 }
