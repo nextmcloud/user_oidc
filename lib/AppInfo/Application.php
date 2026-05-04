@@ -59,6 +59,7 @@ class Application extends App implements IBootstrap {
 
 		$config = $this->getContainer()->get(IConfig::class);
 		if (version_compare($config->getSystemValueString('version', '0.0.0'), '32.0.0', '>=')) {
+			// see https://docs.nextcloud.com/server/latest/developer_manual/app_publishing_maintenance/app_upgrade_guide/upgrade_to_32.html#id3
 			$userManager->registerBackend($this->backend);
 		} else {
 			\OC_User::useBackend($this->backend);
@@ -74,6 +75,10 @@ class Application extends App implements IBootstrap {
 		}
 
 		if (version_compare($config->getSystemValueString('version', '0.0.0'), '34.0.0', '>=')) {
+			/**
+			 * @psalm-suppress UndefinedInterfaceMethod
+			 * @psalm-suppress MissingDependency
+			 */
 			$context->registerAlternativeLoginProvider(AlternativeLoginProvider::class);
 		}
 	}
@@ -93,11 +98,9 @@ class Application extends App implements IBootstrap {
 
 		try {
 			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
-
 			if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
 				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 			}
-
 			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 		} catch (Throwable $e) {
 			error_log('user_oidc boot failed: ' . $e->getMessage());
