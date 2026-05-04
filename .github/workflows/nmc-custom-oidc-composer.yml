@@ -81,10 +81,11 @@ jobs:
         env:
           ASSEMBLY_BRANCH: ${{ inputs.assembly }}
         run: |
-          git add composer.json composer.lock lib/Vendor
+          git add composer.json composer.lock
+          git add -f lib/Vendor
 
           if [ -d lib/autoload ]; then
-            git add lib/autoload
+            git add -f lib/autoload
           fi
 
           if git diff --cached --quiet; then
