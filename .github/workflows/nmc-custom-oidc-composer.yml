@@ -22,7 +22,7 @@ jobs:
   build-custom:
     runs-on: ubuntu-latest
     env:
-      BUILD_USER:  ${{ github.actor }}
+      BUILD_USER: ${{ github.actor }}
       BUILD_EMAIL: ${{ github.actor }}@users.noreply.github.com
       BUILD_TOKEN: ${{ secrets.BUILD_TOKEN || secrets.GITHUB_TOKEN }}
       PHP_VERSION: ${{ vars.PHP_VERSION || '8.2' }}
@@ -78,7 +78,8 @@ jobs:
       - name: Commit and push dependency changes
         if: steps.check_composer.outputs.files_exists == 'true'
         id: pushcomposerdep
-        - name: Commit and push dependency changes
+        env:
+          ASSEMBLY_BRANCH: ${{ inputs.assembly }}
         run: |
           git add composer.json composer.lock lib/Vendor
 
@@ -92,4 +93,4 @@ jobs:
           fi
 
           git commit -m "Add JWT composer library dependencies"
-          git push origin HEAD:${{ inputs.assembly }}
+          git push origin HEAD:$ASSEMBLY_BRANCH
