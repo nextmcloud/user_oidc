@@ -1,0 +1,97 @@
+###
+# SPDX-License-Identifier: AGPL-3.0
+#
+# Author: Bernd Rederlechner <bernd.rederlechner@t-systems.com>
+#
+# user_oidc is (so far) the only app where we add php packages
+# to Nextcloud standard. We add these commandline based in build
+# to avoid continuous merge conflicts due to "composer.lock"
+# merge problems
+
+name: MCLOUD custom user_oidc dependencies
+
+on:
+  workflow_call:
+    inputs:
+      assembly:
+        description: name of the customisation assembly branch
+        required: true
+        type: string
+
+jobs:
+  build-custom:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_USER: ${{ github.actor }}
+      BUILD_EMAIL: ${{ github.actor }}@users.noreply.github.com
+      BUILD_TOKEN: ${{ secrets.BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+      PHP_VERSION: ${{ vars.PHP_VERSION || '8.2' }}
+
+    steps:
+      - name: Fetch custom assembly
+        id: checkout_custom
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ inputs.assembly }}
+          fetch-depth: 0
+          token: ${{ env.BUILD_TOKEN }}
+
+      - name: Prepare GIT modifications
+        id: prepare_git
+        run: |
+          git config user.name "$BUILD_USER"
+          git config user.email "$BUILD_EMAIL"
+
+      - name: Set up php ${{ env.PHP_VERSION }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          coverage: none
+
+      - name: Check composer.json
+        id: check_composer
+        uses: andstor/file-existence-action@v1
+        with:
+          files: "./composer.json"
+
+      - name: Install composer JWT dependencies
+        if: steps.check_composer.outputs.files_exists == 'true'
+        run: |
+          composer require \
+            web-token/jwt-core:^2.2 \
+            web-token/jwt-encryption:^2.2 \
+            web-token/jwt-signature:^2.2 \
+            web-token/jwt-encryption-algorithm-aescbc:^2.2 \
+            web-token/jwt-encryption-algorithm-ecdh-es:^2.2 \
+            web-token/jwt-encryption-algorithm-rsa:^2.2 \
+            web-token/jwt-encryption-algorithm-pbes2:^2.2 \
+            web-token/jwt-signature-algorithm-hmac:^2.2 \
+            web-token/jwt-signature-algorithm-rsa:^2.2 \
+            web-token/jwt-util-ecc:^2.2 \
+            spomky-labs/aes-key-wrap:^6 \
+            --with-all-dependencies
+
+          vendor/bin/mozart compose
+          composer dump-autoload
+
+      - name: Commit and push dependency changes
+        if: steps.check_composer.outputs.files_exists == 'true'
+        id: pushcomposerdep
+        env:
+          ASSEMBLY_BRANCH: ${{ inputs.assembly }}
+        run: |
+          git add composer.json composer.lock
+          git add -f lib/Vendor
+
+          if [ -d lib/autoload ]; then
+            git add -f lib/autoload
+          fi
+
+          if git diff --cached --quiet; then
+            echo "No composer dependency changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Add JWT composer library dependencies"
+          git push origin HEAD:$ASSEMBLY_BRANCH
