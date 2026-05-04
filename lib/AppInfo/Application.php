@@ -36,6 +36,12 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
+
+use OCA\UserOIDC\Service\ProvisioningEventService;
+use OCA\UserOIDC\Service\ProvisioningService;
+
+// this is needed only for the special, shortened client login flow
+use Psr\Container\ContainerInterface;
 use Throwable;
 
 class Application extends App implements IBootstrap {
@@ -50,6 +56,11 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		// Telekom-specific provisioning implementation
+		$this->getContainer()->registerService(ProvisioningService::class, function (ContainerInterface $c): ProvisioningService {
+			return $c->get(ProvisioningEventService::class);
+		});
+
 		/** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
