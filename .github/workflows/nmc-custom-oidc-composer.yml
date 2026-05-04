@@ -78,8 +78,13 @@ jobs:
       - name: Commit and push dependency changes
         if: steps.check_composer.outputs.files_exists == 'true'
         id: pushcomposerdep
+        - name: Commit and push dependency changes
         run: |
-          git add composer.json composer.lock lib/Vendor lib/autoload
+          git add composer.json composer.lock lib/Vendor
+
+          if [ -d lib/autoload ]; then
+            git add lib/autoload
+          fi
 
           if git diff --cached --quiet; then
             echo "No composer dependency changes to commit."
