@@ -26,6 +26,7 @@ declare(strict_types=1);
 
 namespace OCA\UserOIDC\Service;
 
+use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\AttributeMappedEvent;
 use OCA\UserOIDC\Event\UserAccountChangeEvent;
@@ -41,6 +42,7 @@ use OCP\ISession;
 use OCP\IUser;
 use OCP\IUserManager;
 use OCP\L10N\IFactory;
+use OCP\Security\ICrypto;
 use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\NotFoundExceptionInterface;
 use Psr\Log\LoggerInterface;
@@ -74,8 +76,11 @@ class ProvisioningEventService extends ProvisioningService {
 		IConfig $config,
 		ISession $session,
 		IFactory $l10nFactory,
+		ProviderMapper $providerMapper,
+		ICrypto $crypto,
 	) {
-		parent::__construct($idService,
+		parent::__construct(
+			$idService,
 			$providerService,
 			$userMapper,
 			$userManager,
@@ -88,6 +93,8 @@ class ProvisioningEventService extends ProvisioningService {
 			$config,
 			$session,
 			$l10nFactory,
+			$providerMapper,
+			$crypto,
 		);
 		$this->eventDispatcher = $eventDispatcher;
 		$this->logger = $logger;
