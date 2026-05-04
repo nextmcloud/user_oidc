@@ -84,8 +84,13 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function boot(IBootContext $context): void {
+		if ($this->backend === null) {
+			$this->backend = $this->getContainer()->get(MBackend::class);
+		}
+
 		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
-		// $context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
+		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
+
 		/** @var IUserSession $userSession */
 		$userSession = $this->getContainer()->get(IUserSession::class);
 		if ($userSession->isLoggedIn()) {
@@ -94,9 +99,11 @@ class Application extends App implements IBootstrap {
 
 		try {
 			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
+
 			if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
 				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 			}
+
 			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 		} catch (Throwable $e) {
 			error_log('user_oidc boot failed: ' . $e->getMessage());
