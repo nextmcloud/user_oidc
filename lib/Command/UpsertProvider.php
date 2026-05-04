@@ -185,6 +185,7 @@ class UpsertProvider extends Base {
 			->addOption('clientsecret-file', null, InputOption::VALUE_REQUIRED, 'File that contains the OpenID client secret')
 			->addOption('clientsecret-env', null, InputOption::VALUE_REQUIRED, 'Environment variable that contains the OpenID client secret')
 			->addOption('discoveryuri', 'd', InputOption::VALUE_REQUIRED, 'OpenID discovery endpoint uri')
+			->addOption('bearersecret', 'bs', InputOption::VALUE_OPTIONAL, 'Telekom bearer token requires a different client secret for bearer tokens')
 			->addOption('endsessionendpointuri', 'e', InputOption::VALUE_REQUIRED, 'OpenID end session endpoint uri')
 			->addOption('postlogouturi', 'p', InputOption::VALUE_REQUIRED, 'Post logout URI')
 			->addOption('scope', 'o', InputOption::VALUE_OPTIONAL, 'OpenID requested value scopes, if not set defaults to "openid email profile"');
@@ -217,10 +218,17 @@ class UpsertProvider extends Base {
 			return $this->listProviders($input, $output);
 		}
 
+		// bearersecret is usually base64 encoded, but SAM delivers it non-encoded by default
+		// so always encode/decode for this field
+		$bearersecret = $input->getOption('bearersecret');
+		if ($bearersecret !== null) {
+			$bearersecret = $this->crypto->encrypt($this->base64UrlEncode($bearersecret));
+		}
+
 		// check if any option for updating is provided
 		$updateOptions = array_filter($input->getOptions(), static function ($value, $option) {
 			return in_array($option, [
-				'identifier', 'clientid', 'clientsecret', 'discoveryuri', 'endsessionendpointuri', 'postlogouturi', 'scope',
+				'identifier', 'clientid', 'clientsecret', 'discoveryuri', 'endsessionendpointuri', 'postlogouturi', 'scope', 'bearersecret',
 				...array_keys(self::EXTRA_OPTIONS),
 			]) && $value !== null;
 		}, ARRAY_FILTER_USE_BOTH);
@@ -261,7 +269,7 @@ class UpsertProvider extends Base {
 		}
 		try {
 			$provider = $this->providerMapper->createOrUpdateProvider(
-				$identifier, $clientId, $clientSecret, $discoveryuri, $scope, $endsessionendpointuri, $postLogoutUri
+				$identifier, $clientId, $clientSecret, $discoveryuri, $scope, $endsessionendpointuri, $postLogoutUri, $bearersecret
 			);
 			// invalidate JWKS cache (even if it was just created)
 			$this->providerService->setSetting($provider->getId(), ProviderService::SETTING_JWKS_CACHE, '');
@@ -316,6 +324,10 @@ class UpsertProvider extends Base {
 		$table->setRows($providers);
 		$table->render();
 		return 0;
+	}
+
+	private function base64UrlEncode(string $data): string {
+		return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
 	}
 
 	private function getClientSecretInput(
