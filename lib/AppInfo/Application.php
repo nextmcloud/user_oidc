@@ -22,6 +22,7 @@ use OCA\UserOIDC\Listener\InternalTokenRequestedListener;
 use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\Listener\TokenInvalidatedListener;
 use OCA\UserOIDC\Service\ID4MeService;
+use OCA\UserOIDC\Service\NmcClientFlowRedirectService;
 use OCA\UserOIDC\Service\ProvisioningEventService;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\RequestClassificationService;
