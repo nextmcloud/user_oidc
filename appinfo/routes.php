@@ -16,6 +16,7 @@ return [
 		['name' => 'login#code', 'url' => '/code', 'verb' => 'GET'],
 		['name' => 'login#singleLogoutService', 'url' => '/sls', 'verb' => 'GET'],
 		['name' => 'login#backChannelLogout', 'url' => '/backchannel-logout/{providerIdentifier}', 'verb' => 'POST'],
+		['name' => 'login#telekomBackChannelLogout', 'url' => '/logout', 'verb' => 'POST'],
 
 		['name' => 'id4me#showLogin', 'url' => '/id4me', 'verb' => 'GET'],
 		['name' => 'id4me#login', 'url' => '/id4me', 'verb' => 'POST'],
