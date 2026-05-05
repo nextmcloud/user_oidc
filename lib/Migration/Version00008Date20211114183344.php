@@ -15,11 +15,11 @@ class Version00008Date20211114183344 extends SimpleMigrationStep {
 		$schema = $schemaClosure();
 
 		$table = $schema->getTable('user_oidc_providers');
-        $table->addColumn('bearer_secret', 'string', [
-            'notnull' => true,
-            'length' => 64,
-            'default' => '',
-        ]);
+		$table->addColumn('bearer_secret', 'string', [
+			'notnull' => true,
+			'length' => 64,
+			'default' => '',
+		]);
 
 		return $schema;
 	}

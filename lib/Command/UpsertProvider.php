@@ -218,7 +218,7 @@ class UpsertProvider extends Base {
 			return $this->listProviders($input, $output);
 		}
 
-		// bearersecret is usually base64 encoded, 
+		// bearersecret is usually base64 encoded,
 		// but SAM delivers it non-encoded by default
 		// so always encode/decode for this field
 		$bearersecret = $input->getOption('bearersecret');
