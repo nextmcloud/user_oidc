@@ -27,9 +27,9 @@ on:
         description: Branch to build a package from
         options: 
           - main
-          - stable25
-          - stable26
-          - stable27
+          - stable32
+          - stable33
+          - stable34
         default: main
 
 jobs:
