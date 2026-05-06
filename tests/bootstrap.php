@@ -16,6 +16,26 @@ if (!defined('PHPUNIT_RUN')) {
 
 require_once __DIR__ . '/../../../lib/base.php';
 require_once __DIR__ . '/../../../tests/autoload.php';
-require_once __DIR__ . '/../vendor/autoload.php';
+
+/**
+ * Register composer autoloader once
+ */
+$composerAutoloader = require __DIR__ . '/../vendor/autoload.php';
+
+/**
+ * Register test namespace via Composer autoload
+ */
+$composerAutoloader->addPsr4(
+	'OCA\\UserOIDC\\BaseTest\\',
+	__DIR__ . '/unit/MagentaCloud/',
+	true
+);
 
 Server::get(IAppManager::class)->loadApp('user_oidc');
+
+/**
+ * Cleanup hooks to ensure test isolation
+ */
+if (class_exists(\OC_Hook::class)) {
+	\OC_Hook::clear();
+}
