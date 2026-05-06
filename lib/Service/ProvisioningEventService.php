@@ -141,7 +141,10 @@ class ProvisioningEventService extends ProvisioningService {
 		$result = $event->getResult();
 
 		if ($result->hasDecision() && !$result->isAccessAllowed()) {
-			throw new ProvisioningDeniedException($result->getReason());
+			throw new ProvisioningDeniedException(
+				$result->getReason(),
+				$result->getRedirectUrl(),
+			);
 		}
 
 		return $result;
@@ -174,20 +177,24 @@ class ProvisioningEventService extends ProvisioningService {
 
 		$userReaction = $this->dispatchUserAccountUpdate($uid, $displayName, $email, $quota, $idTokenPayload);
 
-		if ($userReaction->isAccessAllowed()) {
-			$this->logger->info($uid . ': account accepted, reason: ' . $userReaction->getReason());
+		if ($userReaction->hasDecision()) {
+			if ($userReaction->isAccessAllowed()) {
+				$this->logger->info($uid . ': account accepted, reason: ' . $userReaction->getReason());
 
-			return [
-				'user' => $existingLocalUser ?? $this->userManager->get($uid),
-				'userData' => get_object_vars($idTokenPayload),
-			];
+				return [
+					'user' => $existingLocalUser ?? $this->userManager->get($uid),
+					'userData' => get_object_vars($idTokenPayload),
+				];
+			}
+
+			$this->logger->info($uid . ': account rejected, reason: ' . $userReaction->getReason());
+
+			throw new ProvisioningDeniedException(
+				$userReaction->getReason(),
+				$userReaction->getRedirectUrl(),
+			);
 		}
 
-		$this->logger->info($uid . ': account rejected, reason: ' . $userReaction->getReason());
-
-		throw new ProvisioningDeniedException(
-			$userReaction->getReason(),
-			$userReaction->getRedirectUrl(),
-		);
+		return parent::provisionUser($tokenUserId, $providerId, $idTokenPayload, $existingLocalUser);
 	}
 }
