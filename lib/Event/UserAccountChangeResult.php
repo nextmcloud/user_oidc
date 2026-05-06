@@ -14,14 +14,18 @@ namespace OCA\UserOIDC\Event;
  */
 class UserAccountChangeResult {
 	public function __construct(
-		private bool $accessAllowed,
+		private ?bool $accessAllowed = null,
 		private string $reason = '',
 		private ?string $redirectUrl = null,
 	) {
 	}
 
+	public function hasDecision(): bool {
+		return $this->accessAllowed !== null;
+	}
+
 	public function isAccessAllowed(): bool {
-		return $this->accessAllowed;
+		return $this->accessAllowed === true;
 	}
 
 	public function setAccessAllowed(bool $accessAllowed): void {

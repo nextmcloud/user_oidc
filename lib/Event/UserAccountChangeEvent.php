@@ -23,11 +23,10 @@ class UserAccountChangeEvent extends Event {
 		private ?string $mainEmail,
 		private ?string $quota,
 		private object $claims,
-		bool $accessAllowed = false,
 	) {
 		parent::__construct();
 
-		$this->result = new UserAccountChangeResult($accessAllowed, 'default');
+		$this->result = new UserAccountChangeResult();
 	}
 
 	public function getUid(): string {

@@ -13,6 +13,7 @@ use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\AttributeMappedEvent;
 use OCA\UserOIDC\Event\UserAccountChangeEvent;
+use OCA\UserOIDC\Event\UserAccountChangeResult;
 use OCP\Accounts\IAccountManager;
 use OCP\DB\Exception;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -133,11 +134,17 @@ class ProvisioningEventService extends ProvisioningService {
 		?string $email,
 		?string $quota,
 		object $payload,
-	): mixed {
+	): UserAccountChangeResult {
 		$event = new UserAccountChangeEvent($uid, $displayName, $email, $quota, $payload);
 		$this->eventDispatcher->dispatchTyped($event);
 
-		return $event->getResult();
+		$result = $event->getResult();
+
+		if ($result->hasDecision() && !$result->isAccessAllowed()) {
+			throw new ProvisioningDeniedException($result->getReason());
+		}
+
+		return $result;
 	}
 
 	/**
