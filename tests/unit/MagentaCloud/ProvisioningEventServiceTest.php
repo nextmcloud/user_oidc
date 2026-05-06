@@ -180,21 +180,21 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 	}
 
 	protected function getProviderSetup(): Provider {
-        $provider = new Provider();
-        $provider->setId($this->getProviderId());
-        $provider->setIdentifier('telekom');
-        $provider->setClientId($this->getOidClientId());
-        $provider->setClientSecret($this->crypto->encrypt($this->getOidClientSecret()));
-        $provider->setScope('openid');
-        $provider->setDiscoveryEndpoint('https://accounts.login00.custom.de/.well-known/openid-configuration');
+		$provider = new Provider();
+		$provider->setId($this->getProviderId());
+		$provider->setIdentifier('telekom');
+		$provider->setClientId($this->getOidClientId());
+		$provider->setClientSecret($this->crypto->encrypt($this->getOidClientSecret()));
+		$provider->setScope('openid');
+		$provider->setDiscoveryEndpoint('https://accounts.login00.custom.de/.well-known/openid-configuration');
 
-        $this->providerMapper->expects($this->any())
-            ->method('getProvider')
-            ->with($this->equalTo($this->getProviderId()))
-            ->willReturn($provider);
+		$this->providerMapper->expects($this->any())
+			->method('getProvider')
+			->with($this->equalTo($this->getProviderId()))
+			->willReturn($provider);
 
-        return $provider;
-    }
+		return $provider;
+	}
 
 	protected function getProviderServiceSetup(): MockObject {
 		$providerService = $this->getMockBuilder(ProviderService::class)
@@ -579,18 +579,18 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 		$this->mockAssertLoginSuccess();
 
 		$this->attributeListener = function (Event $event): void {
-            if (!$event instanceof AttributeMappedEvent) {
-                return;
-            }
+			if (!$event instanceof AttributeMappedEvent) {
+				return;
+			}
 
-            if ($event->getAttribute() === ProviderService::SETTING_MAPPING_DISPLAYNAME) {
-                $event->setValue('Lisa, Mona');
-            }
+			if ($event->getAttribute() === ProviderService::SETTING_MAPPING_DISPLAYNAME) {
+				$event->setValue('Lisa, Mona');
+			}
 
-            if ($event->getAttribute() === ProviderService::SETTING_MAPPING_QUOTA) {
-                $event->setValue('5 TB');
-            }
-        };
+			if ($event->getAttribute() === ProviderService::SETTING_MAPPING_QUOTA) {
+				$event->setValue('5 TB');
+			}
+		};
 
 		$this->accountListener = function (Event $event): void {
 			$this->assertInstanceOf(UserAccountChangeEvent::class, $event);
@@ -608,6 +608,6 @@ class ProvisioningEventServiceTest extends OpenidTokenTestCase {
 		$result = $this->loginController->code($this->getOidTestState(), $this->getOidTestCode(), '');
 
 		$this->assertLoginRedirect($result);
-        $this->assertEquals('http://localhost', $result->getRedirectURL());
+		$this->assertEquals('http://localhost', $result->getRedirectURL());
 	}
 }

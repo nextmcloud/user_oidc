@@ -5,14 +5,7 @@ declare(strict_types=1);
 namespace OCA\UserOIDC\BaseTest;
 
 use OCA\UserOIDC\AppInfo\Application;
-use OCA\UserOIDC\Vendor\Firebase\JWT\JWK as FirebaseJWK;
-use OCA\UserOIDC\Vendor\Firebase\JWT\Key;
-use OCA\UserOIDC\Vendor\Jose\Component\Core\AlgorithmManager;
-use OCA\UserOIDC\Vendor\Jose\Component\Core\JWK;
 use OCA\UserOIDC\Vendor\Jose\Component\Core\Util\Base64UrlSafe;
-use OCA\UserOIDC\Vendor\Jose\Component\Signature\Algorithm\RS256;
-use OCA\UserOIDC\Vendor\Jose\Component\Signature\JWSBuilder;
-use OCA\UserOIDC\Vendor\Jose\Component\Signature\Serializer\CompactSerializer;
 use OCP\AppFramework\App;
 use PHPUnit\Framework\TestCase;
 
@@ -39,9 +32,9 @@ class OpenidTokenTestCase extends TestCase {
 		return 'CVMI8I3JZPALSL5DIM6I1PDP8SDSEN4K';
 	}
 
-    public function getOidClientSecret(): string {
-        return 'JQ17C99A-DAF8-4E27-FBW4-GV23B043C993';
-    }
+	public function getOidClientSecret(): string {
+		return 'JQ17C99A-DAF8-4E27-FBW4-GV23B043C993';
+	}
 
 	public function getOidServerKey(): string {
 		return Base64UrlSafe::encodeUnpadded('JQ17DAF8-C99A-4E27-FBW4-GV23B043C993');
@@ -65,14 +58,14 @@ class OpenidTokenTestCase extends TestCase {
 		];
 	}
 
-    public function getOidPublicServerKey(): array {
-        return [
-            '0123456789' => new \OCA\UserOIDC\Vendor\Firebase\JWT\Key(
-                $this->getOidClientSecret(),
-                'HS256',
-            ),
-        ];
-    }
+	public function getOidPublicServerKey(): array {
+		return [
+			'0123456789' => new \OCA\UserOIDC\Vendor\Firebase\JWT\Key(
+				$this->getOidClientSecret(),
+				'HS256',
+			),
+		];
+	}
 
 	public function getOidTestCode(): string {
 		return '66844608';
@@ -111,12 +104,12 @@ class OpenidTokenTestCase extends TestCase {
 		];
 	}
 
-    protected function createSignToken(array $claims): string {
-        return \OCA\UserOIDC\Vendor\Firebase\JWT\JWT::encode(
-            $claims,
-            $this->getOidClientSecret(),
-            'HS256',
-            '0123456789',
-        );
-    }
+	protected function createSignToken(array $claims): string {
+		return \OCA\UserOIDC\Vendor\Firebase\JWT\JWT::encode(
+			$claims,
+			$this->getOidClientSecret(),
+			'HS256',
+			'0123456789',
+		);
+	}
 }
