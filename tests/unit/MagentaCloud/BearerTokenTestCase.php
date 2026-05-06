@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace OCA\UserOIDC\BaseTest;
 
+use OCA\UserOIDC\AppInfo\Application;
+use OCA\UserOIDC\MagentaBearer\TokenService;
 use OCA\UserOIDC\Vendor\Jose\Component\Core\AlgorithmManager;
 use OCA\UserOIDC\Vendor\Jose\Component\Core\JWK;
 use OCA\UserOIDC\Vendor\Jose\Component\Core\Util\Base64UrlSafe;
@@ -24,8 +26,6 @@ use OCA\UserOIDC\Vendor\Jose\Component\Signature\Algorithm\HS256;
 use OCA\UserOIDC\Vendor\Jose\Component\Signature\JWS;
 use OCA\UserOIDC\Vendor\Jose\Component\Signature\JWSBuilder;
 use OCA\UserOIDC\Vendor\Jose\Component\Signature\Serializer\CompactSerializer as JWSCompactSerializer;
-use OCA\UserOIDC\AppInfo\Application;
-use OCA\UserOIDC\MagentaBearer\TokenService;
 use OCP\AppFramework\App;
 use PHPUnit\Framework\TestCase;
 
