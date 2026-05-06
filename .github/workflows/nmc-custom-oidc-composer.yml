@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BUILD_TOKEN: ${{ secrets.BUILD_TOKEN || secrets.GITHUB_TOKEN }}
-      PHP_VERSION: ${{ vars.PHP_VERSION || '8.1' }}
+      PHP_VERSION: ${{ vars.PHP_VERSION || '8.3' }}
 
     steps:
       - name: Fetch custom assembly
