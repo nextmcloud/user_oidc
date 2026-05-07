@@ -33,11 +33,9 @@ use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
-use OCP\ISession;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
-use OCP\Security\ISecureRandom;
 use Throwable;
 
 class Application extends App implements IBootstrap {
@@ -114,8 +112,8 @@ class Application extends App implements IBootstrap {
 		IRequest $request,
 		IURLGenerator $urlGenerator,
 		ProviderMapper $providerMapper,
-		ISession $session,
-		ISecureRandom $random,
+		\OCP\ISession $session,
+		\OCP\Security\ISecureRandom $random,
 	): void {
 		$providers = $this->getCachedProviders($providerMapper);
 
@@ -137,7 +135,12 @@ class Application extends App implements IBootstrap {
 			return;
 		}
 
-		$stateToken = $random->generate(64, ISecureRandom::CHAR_LOWER . ISecureRandom::CHAR_UPPER . ISecureRandom::CHAR_DIGITS);
+		$stateToken = $random->generate(
+			64,
+			\OCP\Security\ISecureRandom::CHAR_LOWER
+				. \OCP\Security\ISecureRandom::CHAR_UPPER
+				. \OCP\Security\ISecureRandom::CHAR_DIGITS
+		);
 
 		$session->set('client.flow.state.token', $stateToken);
 
