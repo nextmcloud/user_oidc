@@ -38,6 +38,8 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
+
+// this is needed only for the event-based provisioning solution
 use Psr\Container\ContainerInterface;
 use Throwable;
 
