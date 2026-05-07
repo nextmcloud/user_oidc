@@ -93,7 +93,7 @@ class Application extends App implements IBootstrap {
 
 		try {
 			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
-			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));	
+			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 			if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
 				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 			}
