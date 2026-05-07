@@ -31,9 +31,8 @@ return [
 		['name' => 'Settings#setID4ME', 'url' => '/api/{apiVersion}/provider/id4me', 'verb' => 'POST', 'requirements' => $requirements],
 		['name' => 'Settings#getSupportedSettings', 'url' => '/api/{apiVersion}/supported-settings', 'verb' => 'GET', 'requirements' => $requirements],
 		['name' => 'Settings#setAdminConfig', 'url' => '/api/{apiVersion}/admin-config', 'verb' => 'POST', 'requirements' => $requirements],
-		
-		// We have to disable the endpoints to avoid problems with Telekom provisioning
-		// ['name' => 'ocsApi#createUser', 'url' => '/api/{apiVersion}/user', 'verb' => 'POST', 'requirements' => $requirements],
-		// ['name' => 'ocsApi#deleteUser', 'url' => '/api/{apiVersion}/user/{userId}', 'verb' => 'DELETE', 'requirements' => $requirements],
+
+		['name' => 'ocsApi#createUser', 'url' => '/api/{apiVersion}/user', 'verb' => 'POST', 'requirements' => $requirements],
+		['name' => 'ocsApi#deleteUser', 'url' => '/api/{apiVersion}/user/{userId}', 'verb' => 'DELETE', 'requirements' => $requirements],
 	],
 ];
