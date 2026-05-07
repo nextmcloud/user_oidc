@@ -1064,7 +1064,7 @@ class LoginController extends BaseOidcController {
 				'error' => $error,
 				'error_description' => $description,
 			],
-			Http::STATUS_BAD_REQUEST,
+			Http::STATUS_OK,
 		);
 		// Tell the Idp not to cache the response
 		// Per RFC : https://openid.net/specs/openid-connect-backchannel-1_0.html#BCResponse
