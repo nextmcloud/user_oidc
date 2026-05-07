@@ -117,17 +117,16 @@ jobs:
             web-token/jwt-encryption \
             spomky-labs/aes-key-wrap \
             --with-all-dependencies \
-            --no-interaction
+            --no-interaction \
+            --no-scripts
 
       - name: Commit and push composer changes
         if: steps.check_composer.outputs.files_exists == 'true'
         run: |
-          if git diff --quiet; then
+          if git diff --cached --quiet; then
             echo "No composer changes to commit"
             exit 0
           fi
-
-          // git add composer.json composer.lock lib/Vendor lib/autoload
-
+          
           git commit -m "Add custom user_oidc composer dependencies"
           git push origin "HEAD:${ASSEMBLY_BRANCH}"
