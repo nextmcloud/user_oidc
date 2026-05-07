@@ -85,8 +85,7 @@ class Application extends App implements IBootstrap {
 		/** @var MBackend $backend */
 		$backend = $this->getContainer()->get(MBackend::class);
 		$context->injectFn(\Closure::fromCallable([$backend, 'injectSession']));
-
-		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
+		// $context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 		/** @var IUserSession $userSession */
 		$userSession = $this->getContainer()->get(IUserSession::class);
 		if ($userSession->isLoggedIn()) {
