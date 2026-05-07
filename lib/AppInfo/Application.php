@@ -21,13 +21,13 @@ use OCA\UserOIDC\Listener\ExternalTokenRequestedListener;
 use OCA\UserOIDC\Listener\InternalTokenRequestedListener;
 use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\Listener\TokenInvalidatedListener;
+use OCA\UserOIDC\MagentaBearer\MBackend;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\ProvisioningEventService;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\RequestClassificationService;
 use OCA\UserOIDC\Service\SettingsService;
 use OCA\UserOIDC\Service\TokenService;
-use OCA\UserOIDC\User\Backend;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -62,7 +62,7 @@ class Application extends App implements IBootstrap {
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
 		/* Register our own user backend */
-		$this->backend = $this->getContainer()->get(Backend::class);
+		$this->backend = $this->getContainer()->get(MBackend::class);
 
 		$config = $this->getContainer()->get(IConfig::class);
 		if (version_compare($config->getSystemValueString('version', '0.0.0'), '32.0.0', '>=')) {
