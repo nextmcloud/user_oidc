@@ -42,7 +42,6 @@ class Application extends App implements IBootstrap {
 	public const APP_ID = 'user_oidc';
 	public const OIDC_API_REQ_HEADER = 'Authorization';
 
-	private $backend;
 	private $cachedProviders;
 
 	public function __construct(array $urlParams = []) {
@@ -54,14 +53,14 @@ class Application extends App implements IBootstrap {
 		$userManager = $this->getContainer()->get(IUserManager::class);
 
 		/* Register our own user backend */
-		$this->backend = $this->getContainer()->get(MBackend::class);
+		$backend = $this->getContainer()->get(MBackend::class);
 
 		$config = $this->getContainer()->get(IConfig::class);
 		if (version_compare($config->getSystemValueString('version', '0.0.0'), '32.0.0', '>=')) {
 			// see https://docs.nextcloud.com/server/latest/developer_manual/app_publishing_maintenance/app_upgrade_guide/upgrade_to_32.html#id3
-			$userManager->registerBackend($this->backend);
+			$userManager->registerBackend($backend);
 		} else {
-			\OC_User::useBackend($this->backend);
+			\OC_User::useBackend($backend);
 		}
 
 		$context->registerEventListener(LoadAdditionalScriptsEvent::class, TimezoneHandlingListener::class);
@@ -83,7 +82,10 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function boot(IBootContext $context): void {
-		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
+		/** @var MBackend $backend */
+		$backend = $this->getContainer()->get(MBackend::class);
+		$context->injectFn(\Closure::fromCallable([$backend, 'injectSession']));
+
 		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 		/** @var IUserSession $userSession */
 		$userSession = $this->getContainer()->get(IUserSession::class);
