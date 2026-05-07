@@ -25,7 +25,7 @@ jobs:
       BUILD_USER: ${{ github.actor }}
       BUILD_EMAIL: ${{ github.actor }}@users.noreply.github.com
       BUILD_TOKEN: ${{ secrets.BUILD_TOKEN || secrets.GITHUB_TOKEN }}
-      PHP_VERSION: ${{ vars.PHP_VERSION || '8.3' }}
+      PHP_VERSION: ${{ vars.PHP_VERSION || '8.1' }}
       ASSEMBLY_BRANCH: ${{ inputs.assembly }}
 
     steps:
