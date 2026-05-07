@@ -69,6 +69,7 @@ jobs:
               JSON_THROW_ON_ERROR
           );
 
+          $json['config']['platform']['php'] = '8.1.0';
           $json['autoload']['psr-4']['OCA\\UserOIDC\\'] = 'lib/';
           $json['autoload-dev']['psr-4']['OCA\\UserOIDC\\Tests\\'] = 'tests/';
 
@@ -117,6 +118,7 @@ jobs:
             web-token/jwt-encryption \
             spomky-labs/aes-key-wrap \
             --with-all-dependencies \
+            --no-dev \
             --no-interaction \
             --no-scripts
 
