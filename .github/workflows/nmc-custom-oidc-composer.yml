@@ -1,10 +1,12 @@
 ###
 # SPDX-License-Identifier: AGPL-3.0
 #
-# Author: Bernd Rederlechner <bernd.rederlechner@t-systems.com>
+# Author: Mauro Mura <mauro-efisio.mura@t-systems.com>
 #
 # user_oidc brings its PHP dependencies via composer.json.
 # composer install also runs Mozart via post-install-cmd.
+# We add these commandline based in build to avoid continuous 
+# merge conflicts due to "composer.lock" merge problems.
 
 name: MCLOUD custom user_oidc dependencies
 
@@ -20,24 +22,31 @@ jobs:
   build-custom:
     runs-on: ubuntu-latest
     env:
+      BUILD_USER: ${{ github.actor }}
+      BUILD_EMAIL: ${{ github.actor }}@users.noreply.github.com
       BUILD_TOKEN: ${{ secrets.BUILD_TOKEN || secrets.GITHUB_TOKEN }}
       PHP_VERSION: ${{ vars.PHP_VERSION || '8.3' }}
+      ASSEMBLY_BRANCH: ${{ inputs.assembly }}
 
     steps:
       - name: Fetch custom assembly
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}
           ref: ${{ inputs.assembly }}
           fetch-depth: 0
           token: ${{ env.BUILD_TOKEN }}
 
+      - name: Prepare GIT modifications
+        run: |
+          git config user.name "$BUILD_USER"
+          git config user.email "$BUILD_EMAIL"
+
       - name: Set up PHP ${{ env.PHP_VERSION }}
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
           coverage: none
-          tools: composer
 
       - name: Check composer.json
         id: check_composer
@@ -45,12 +54,80 @@ jobs:
         with:
           files: "./composer.json"
 
-      - name: Install composer dependencies and build prefixed vendor
+      - name: Patch composer.json for custom user_oidc dependencies
         if: steps.check_composer.outputs.files_exists == 'true'
         run: |
-          composer install --no-interaction --prefer-dist
+          php <<'PHP'
+          <?php
 
-      - name: Run unit tests
+          $file = 'composer.json';
+
+          $json = json_decode(
+              file_get_contents($file),
+              true,
+              512,
+              JSON_THROW_ON_ERROR
+          );
+
+          $json['autoload']['psr-4']['OCA\\UserOIDC\\'] = 'lib/';
+          $json['autoload-dev']['psr-4']['OCA\\UserOIDC\\Tests\\'] = 'tests/';
+
+          $json['require']['web-token/jwt-core'] = '^3.4';
+          $json['require']['web-token/jwt-signature'] = '^3.4';
+          $json['require']['web-token/jwt-encryption'] = '^3.4';
+          $json['require']['spomky-labs/aes-key-wrap'] = '^7.0';
+
+          $json['scripts']['post-install-cmd'] = [
+              '@composer bin all install --ansi',
+              'vendor/bin/mozart compose',
+              '@fix-prefixed-aeskw-imports',
+              'composer dump-autoload',
+          ];
+
+          $json['scripts']['post-update-cmd'] = [
+              '@composer bin all install --ansi',
+              'vendor/bin/mozart compose',
+              '@fix-prefixed-aeskw-imports',
+              'composer dump-autoload',
+          ];
+
+          $json['scripts']['fix-prefixed-aeskw-imports'] = "[ ! -d lib/Vendor/Jose/Component/Encryption/Algorithm/KeyEncryption ] || find lib/Vendor/Jose/Component/Encryption/Algorithm/KeyEncryption -type f -name '*.php' -exec sed -i -e 's/use AESKW\\\\/use OCA\\\\UserOIDC\\\\Vendor\\\\AESKW\\\\/g' {} +; [ ! -d lib/Vendor/AESKW ] || find lib/Vendor/AESKW -type f -name '*.php' -exec sed -i -e 's/use OCA\\\\UserOIDC\\\\Vendor\\\\AESKW;/use AESKW;/g' {} +; [ ! -f lib/Vendor/AESKW/AESKW.php ] || sed -i -e 's/trait OCA\\\\UserOIDC\\\\Vendor\\\\AESKW/trait AESKW/g' lib/Vendor/AESKW/AESKW.php";
+
+          $json['extra']['mozart']['packages'] = [
+              'firebase/php-jwt',
+              'id4me/id4me-rp',
+              'spomky-labs/aes-key-wrap',
+              'web-token/jwt-core',
+              'web-token/jwt-signature',
+              'web-token/jwt-encryption',
+          ];
+
+          file_put_contents(
+              $file,
+              json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL
+          );
+          PHP
+
+      - name: Install custom composer dependencies
         if: steps.check_composer.outputs.files_exists == 'true'
         run: |
-          XDEBUG_MODE=off composer test:unit
+          composer update \
+            web-token/jwt-core \
+            web-token/jwt-signature \
+            web-token/jwt-encryption \
+            spomky-labs/aes-key-wrap \
+            --with-all-dependencies \
+            --no-interaction
+
+      - name: Commit and push composer changes
+        if: steps.check_composer.outputs.files_exists == 'true'
+        run: |
+          if git diff --quiet; then
+            echo "No composer changes to commit"
+            exit 0
+          fi
+
+          // git add composer.json composer.lock lib/Vendor lib/autoload
+
+          git commit -m "Add custom user_oidc composer dependencies"
+          git push origin "HEAD:${ASSEMBLY_BRANCH}"
