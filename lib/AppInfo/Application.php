@@ -23,8 +23,6 @@ use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\Listener\TokenInvalidatedListener;
 use OCA\UserOIDC\MagentaBearer\MBackend;
 use OCA\UserOIDC\Service\ID4MeService;
-use OCA\UserOIDC\Service\ProvisioningEventService;
-use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\RequestClassificationService;
 use OCA\UserOIDC\Service\SettingsService;
 use OCA\UserOIDC\Service\TokenService;
@@ -40,8 +38,9 @@ use OCP\ISession;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
+
+// this is needed only for the special, shortened client login flow
 use OCP\Security\ISecureRandom;
-use Psr\Container\ContainerInterface;
 use Throwable;
 
 class Application extends App implements IBootstrap {
