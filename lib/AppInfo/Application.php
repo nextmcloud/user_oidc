@@ -24,7 +24,6 @@ use OCA\UserOIDC\Listener\TokenInvalidatedListener;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\RequestClassificationService;
 use OCA\UserOIDC\Service\SettingsService;
-use OCA\UserOIDC\Service\TokenService;
 use OCA\UserOIDC\User\Backend;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -36,6 +35,7 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
+use OCP\Security\ISecureRandom;
 use Throwable;
 
 class Application extends App implements IBootstrap {
@@ -84,7 +84,6 @@ class Application extends App implements IBootstrap {
 
 	public function boot(IBootContext $context): void {
 		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
-		$context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 		/** @var IUserSession $userSession */
 		$userSession = $this->getContainer()->get(IUserSession::class);
 		if ($userSession->isLoggedIn()) {
@@ -93,6 +92,7 @@ class Application extends App implements IBootstrap {
 
 		try {
 			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
+			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));	
 			if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
 				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 			}
@@ -100,8 +100,54 @@ class Application extends App implements IBootstrap {
 		}
 	}
 
-	private function checkLoginToken(TokenService $tokenService): void {
-		$tokenService->checkLoginToken();
+	/**
+	 * This is the automatic redirect exclusively for Nextcloud/Magentacloud clients, completely skipping consent layer.
+	 */
+	private function registerNmcClientFlow(
+		IRequest $request,
+		IURLGenerator $urlGenerator,
+		ProviderMapper $providerMapper,
+		ISession $session,
+		ISecureRandom $random,
+	): void {
+		$providers = $this->getCachedProviders($providerMapper);
+
+		try {
+			$isClientLoginFlow = $request->getPathInfo() === '/login/flow';
+		} catch (Exception) {
+			return;
+		}
+
+		if (!$isClientLoginFlow) {
+			return;
+		}
+
+		$tproviders = array_values(array_filter($providers, static function ($provider): bool {
+			return strtolower($provider->getIdentifier()) === 'telekom';
+		}));
+
+		if (count($tproviders) === 0) {
+			return;
+		}
+
+		$stateToken = $random->generate(64, ISecureRandom::CHAR_LOWER . ISecureRandom::CHAR_UPPER . ISecureRandom::CHAR_DIGITS);
+
+		$session->set('client.flow.state.token', $stateToken);
+
+		$redirectUrl = $urlGenerator->linkToRoute('core.ClientFlowLogin.grantPage', [
+			'stateToken' => $stateToken,
+			'clientIdentifier' => $request->getParam('clientIdentifier', ''),
+			'direct' => $request->getParam('direct', '0'),
+		]);
+
+		$targetUrl = $urlGenerator->linkToRoute(self::APP_ID . '.login.login', [
+			'providerId' => $tproviders[0]->getId(),
+			'redirectUrl' => $redirectUrl,
+		]);
+
+		header('Location: ' . $targetUrl);
+
+		exit();
 	}
 
 	private function registerRedirect(IRequest $request, IURLGenerator $urlGenerator, SettingsService $settings, ProviderMapper $providerMapper): void {
