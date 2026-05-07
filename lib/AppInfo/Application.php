@@ -93,6 +93,7 @@ class Application extends App implements IBootstrap {
 
 		try {
 			$context->injectFn(\Closure::fromCallable([$this, 'registerRedirect']));
+			$context->injectFn(\Closure::fromCallable([$this, 'registerNmcClientFlow']));
 			if (version_compare($this->getContainer()->get(IConfig::class)->getSystemValueString('version', '0.0.0'), '34.0.0', '<')) {
 				$context->injectFn(\Closure::fromCallable([$this, 'registerLogin']));
 			}
@@ -102,6 +103,61 @@ class Application extends App implements IBootstrap {
 
 	private function checkLoginToken(TokenService $tokenService): void {
 		$tokenService->checkLoginToken();
+	}
+
+	/**
+	 * This is the automatic redirect exclusively for Nextcloud/Magentacloud clients, completely skipping consent layer.
+	 */
+	private function registerNmcClientFlow(
+		IRequest $request,
+		IURLGenerator $urlGenerator,
+		ProviderMapper $providerMapper,
+		\OCP\ISession $session,
+		\OCP\Security\ISecureRandom $random,
+	): void {
+		$providers = $this->getCachedProviders($providerMapper);
+
+		try {
+			$isClientLoginFlow = $request->getPathInfo() === '/login/flow';
+		} catch (Exception) {
+			return;
+		}
+
+		if (!$isClientLoginFlow) {
+			return;
+		}
+
+		$tproviders = array_values(array_filter($providers, static function ($provider): bool {
+			return strtolower($provider->getIdentifier()) === 'telekom';
+		}));
+
+		if (count($tproviders) === 0) {
+			return;
+		}
+
+		$stateToken = $random->generate(
+			64,
+			\OCP\Security\ISecureRandom::CHAR_LOWER
+				. \OCP\Security\ISecureRandom::CHAR_UPPER
+				. \OCP\Security\ISecureRandom::CHAR_DIGITS
+		);
+
+		$session->set('client.flow.state.token', $stateToken);
+
+		$redirectUrl = $urlGenerator->linkToRoute('core.ClientFlowLogin.grantPage', [
+			'stateToken' => $stateToken,
+			'clientIdentifier' => $request->getParam('clientIdentifier', ''),
+			'direct' => $request->getParam('direct', '0'),
+		]);
+
+		$targetUrl = $urlGenerator->linkToRoute(self::APP_ID . '.login.login', [
+			'providerId' => $tproviders[0]->getId(),
+			'redirectUrl' => $redirectUrl,
+		]);
+
+		header('Location: ' . $targetUrl);
+
+		exit();
 	}
 
 	private function registerRedirect(IRequest $request, IURLGenerator $urlGenerator, SettingsService $settings, ProviderMapper $providerMapper): void {
