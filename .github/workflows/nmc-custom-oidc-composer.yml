@@ -123,10 +123,14 @@ jobs:
       - name: Commit and push composer changes
         if: steps.check_composer.outputs.files_exists == 'true'
         run: |
+          git status --short
+
+          git add composer.json composer.lock
+
           if git diff --cached --quiet; then
             echo "No composer changes to commit"
             exit 0
           fi
-          
+
           git commit -m "Add custom user_oidc composer dependencies"
           git push origin "HEAD:${ASSEMBLY_BRANCH}"
