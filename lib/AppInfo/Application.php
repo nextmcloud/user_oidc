@@ -24,6 +24,7 @@ use OCA\UserOIDC\Listener\TokenInvalidatedListener;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\RequestClassificationService;
 use OCA\UserOIDC\Service\SettingsService;
+use OCA\UserOIDC\Service\TokenService;
 use OCA\UserOIDC\User\Backend;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -85,6 +86,7 @@ class Application extends App implements IBootstrap {
 
 	public function boot(IBootContext $context): void {
 		$context->injectFn(\Closure::fromCallable([$this->backend, 'injectSession']));
+		// $context->injectFn(\Closure::fromCallable([$this, 'checkLoginToken']));
 		/** @var IUserSession $userSession */
 		$userSession = $this->getContainer()->get(IUserSession::class);
 		if ($userSession->isLoggedIn()) {
@@ -99,6 +101,10 @@ class Application extends App implements IBootstrap {
 			}
 		} catch (Throwable $e) {
 		}
+	}
+
+	private function checkLoginToken(TokenService $tokenService): void {
+		$tokenService->checkLoginToken();
 	}
 
 	/**
