@@ -23,6 +23,8 @@ use OCA\UserOIDC\Listener\TimezoneHandlingListener;
 use OCA\UserOIDC\Listener\TokenInvalidatedListener;
 use OCA\UserOIDC\MagentaBearer\MBackend;
 use OCA\UserOIDC\Service\ID4MeService;
+use OCA\UserOIDC\Service\ProvisioningEventService;
+use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\RequestClassificationService;
 use OCA\UserOIDC\Service\SettingsService;
 use OCA\UserOIDC\Service\TokenService;
@@ -36,6 +38,7 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
+use Psr\Container\ContainerInterface;
 use Throwable;
 
 class Application extends App implements IBootstrap {
@@ -49,6 +52,11 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		// override registration of provisioning service to use event-based solution
+		$this->getContainer()->registerService(ProvisioningService::class, function (ContainerInterface $c): ProvisioningService {
+			return $c->get(ProvisioningEventService::class);
+		});
+
 		/** @var IUserManager $userManager */
 		$userManager = $this->getContainer()->get(IUserManager::class);
 

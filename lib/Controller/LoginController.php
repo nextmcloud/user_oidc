@@ -24,6 +24,7 @@ use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\OIDCService;
 use OCA\UserOIDC\Service\ProviderService;
+use OCA\UserOIDC\Service\ProvisioningDeniedException;
 use OCA\UserOIDC\Service\ProvisioningService;
 use OCA\UserOIDC\Service\SettingsService;
 use OCA\UserOIDC\Service\TokenService;
@@ -654,8 +655,21 @@ class LoginController extends BaseOidcController {
 				$message = $this->l10n->t('User conflict');
 				return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
 			}
+
 			// use potential user from other backend, create it in our backend if it does not exist
-			$provisioningResult = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $existingUser);
+			try {
+				$provisioningResult = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $existingUser);
+			} catch (ProvisioningDeniedException $denied) {
+				$redirectUrl = $denied->getRedirectUrl();
+
+				if ($redirectUrl === null) {
+					$message = $this->l10n->t('Failed to provision user');
+					return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => $denied->getMessage()]);
+				}
+
+				return new RedirectResponse($redirectUrl);
+			}
+
 			$user = $provisioningResult['user'];
 			if ($existingUser === null && $user !== null) {
 				// we know we just created a user
