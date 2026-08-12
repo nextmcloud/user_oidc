@@ -7,7 +7,6 @@
 
 declare(strict_types=1);
 
-
 namespace OCA\UserOIDC\Service;
 
 use OCA\UserOIDC\AppInfo\Application;
@@ -61,6 +60,7 @@ class ProviderService {
 	public const SETTING_RESTRICT_LOGIN_TO_GROUPS = 'restrictLoginToGroups';
 	public const SETTING_AZURE_GROUP_NAMES = 'azureGroupNames';
 	public const SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING = 'nestedAndFallbackClaims';
+	public const SETTING_ENRICH_LOGIN_ID_TOKEN_WITH_USERINFO = 'enrichLoginIdTokenWithUserinfo';
 
 	public const BOOLEAN_SETTINGS_DEFAULT_VALUES = [
 		self::SETTING_GROUP_PROVISIONING => false,
@@ -72,6 +72,7 @@ class ProviderService {
 		self::SETTING_RESTRICT_LOGIN_TO_GROUPS => false,
 		self::SETTING_AZURE_GROUP_NAMES => false,
 		self::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING => false,
+		self::SETTING_ENRICH_LOGIN_ID_TOKEN_WITH_USERINFO => false,
 	];
 
 	public function __construct(
@@ -195,6 +196,7 @@ class ProviderService {
 			self::SETTING_RESTRICT_LOGIN_TO_GROUPS,
 			self::SETTING_AZURE_GROUP_NAMES,
 			self::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING,
+			self::SETTING_ENRICH_LOGIN_ID_TOKEN_WITH_USERINFO,
 		];
 	}
 

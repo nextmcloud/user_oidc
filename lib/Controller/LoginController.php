@@ -327,7 +327,6 @@ class LoginController extends BaseOidcController {
 			$data['code_challenge_method'] = 'S256';
 		}
 
-
 		$authorizationUrl = $this->discoveryService->buildAuthorizationUrl($discovery['authorization_endpoint'], $data);
 
 		$this->logger->debug('Redirecting user to: ' . $authorizationUrl);
@@ -539,7 +538,13 @@ class LoginController extends BaseOidcController {
 		}
 
 		// default is false
-		if (isset($oidcSystemConfig['enrich_login_id_token_with_userinfo']) && $oidcSystemConfig['enrich_login_id_token_with_userinfo']) {
+		$globalEnrichWithUserinfo = isset($oidcSystemConfig['enrich_login_id_token_with_userinfo']) && $oidcSystemConfig['enrich_login_id_token_with_userinfo'];
+		$providerEnrichWithUserinfo = $this->providerService->getSetting(
+			$provider->getId(),
+			ProviderService::SETTING_ENRICH_LOGIN_ID_TOKEN_WITH_USERINFO,
+			'0'
+		) === '1';
+		if ($globalEnrichWithUserinfo || $providerEnrichWithUserinfo) {
 			$userInfo = $this->oidcService->userInfo($provider, $data['access_token']);
 			$this->logger->debug('[UserInfoEnrich] Enriching the JWT payload with userinfo values');
 			foreach ($userInfo as $key => $value) {
@@ -889,8 +894,7 @@ class LoginController extends BaseOidcController {
 
 		// REQUIRED claims check step
 		// https://openid.net/specs/openid-connect-backchannel-1_0.html#LogoutToken
-		// Note : exp claim is deliberately not checked. See #1432
-		$requiredClaims = ['iss', 'aud', 'iat', 'jti', 'events'];
+		$requiredClaims = ['iss', 'aud', 'iat', 'exp', 'jti', 'events'];
 		$missingClaims = [];
 		$logoutTokenArray = (array)$logoutTokenPayload;
 		foreach ($requiredClaims as $claim) {
@@ -960,7 +964,7 @@ class LoginController extends BaseOidcController {
 			);
 		}
 
-		if (isset($logoutTokenPayload->exp) && $logoutTokenPayload->exp < $this->timeFactory->getTime()) {
+		if (($logoutTokenPayload->exp ?? 0) < $this->timeFactory->getTime()) {
 			return  $this->getBackchannelLogoutErrorResponse(
 				'invalid exp',
 				'The logout token is expired',

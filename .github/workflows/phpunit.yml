@@ -22,18 +22,24 @@ jobs:
       matrix:
         php-versions: ['8.2', '8.3', '8.4']
         databases: ['mysql']
-        server-versions: ['stable31', 'stable32', 'stable33', 'master']
+        server-versions: ['stable31', 'stable32', 'stable33', 'stable34', 'master']
         exclude:
           # Reduce matrix - test pgsql only on master and latest stable
           - databases: pgsql
             server-versions: stable31
           - databases: pgsql
             server-versions: stable32
+          # Not compatible anymore
+          - php-versions: 8.2
+            server-versions: master
         include:
           # PHP 8.5 with mysql on latest versions
           - php-versions: 8.5
             databases: mysql
             server-versions: stable33
+          - php-versions: 8.5
+            databases: mysql
+            server-versions: stable34
           - php-versions: 8.5
             databases: mysql
             server-versions: master
