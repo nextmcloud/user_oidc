@@ -49,6 +49,8 @@ class TokenService {
 
 	private const SESSION_TOKEN_KEY = Application::APP_ID . '-user-token';
 	private const REFRESH_LOCK_KEY = Application::APP_ID . '-lock-key';
+	private const TELEKOM_P013_CLAIM = 'urn:telekom.com:p013';
+	private const MIGRATION_NOTICE_P013_SESSION_KEY = 'nmc_migration_notice.p013';
 
 	private IClient $client;
 
@@ -76,6 +78,9 @@ class TokenService {
 		$token = new Token($tokenData, $this->timeFactory);
 		$this->session->set(self::SESSION_TOKEN_KEY, json_encode($token, JSON_THROW_ON_ERROR));
 		$this->logger->debug('[TokenService] Store token in the session', ['session_id' => $this->session->getId()]);
+
+		$this->updateMigrationNoticeSessionFlag($token);
+
 		return $token;
 	}
 
@@ -300,6 +305,29 @@ class TokenService {
 		JWT::$leeway = 60;
 		$idTokenObject = JWT::decode($token->getIdToken(), $jwks);
 		return json_decode(json_encode($idTokenObject), true);
+	}
+
+	private function updateMigrationNoticeSessionFlag(Token $token): void {
+		$idToken = $token->getIdToken();
+
+		// A refresh response does not necessarily contain a new ID token.
+		// In this case keep the existing session value unchanged.
+		if ($idToken === null || $idToken === '') {
+			return;
+		}
+
+		try {
+			$claims = $this->decodeIdToken($token);
+			$p013 = $claims[self::TELEKOM_P013_CLAIM] ?? null;
+
+			if ($p013 === '1' || $p013 === 1) {
+				$this->session->set(self::MIGRATION_NOTICE_P013_SESSION_KEY, true);
+			} else {
+				$this->session->remove(self::MIGRATION_NOTICE_P013_SESSION_KEY);
+			}
+		} catch (\Throwable $e) {
+			$this->logger->warning('[TokenService] Failed to update p013 session flag', ['exception' => $e]);
+		}
 	}
 
 	/**
