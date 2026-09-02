@@ -564,6 +564,23 @@ class LoginController extends BaseOidcController {
 
 		$this->logger->debug('Parsed the JWT payload');
 
+		// log the raw ID token for debugging purposes, remove after dev testing
+		$this->logger->info('[OIDC Code Login] Raw ID token for debugging', [
+			'id_token' => $idTokenRaw,
+		]);
+
+		$p013Claim = 'urn:telekom.com:p013';
+		$p013 = $idTokenPayload->{$p013Claim} ?? null;
+
+		if ($p013 === '1' || $p013 === 1) {
+			$this->session->set('nmc_migration_notice.p013', true);
+			$this->session->remove('nmc_migration_notice.shown');
+			$this->logger->debug('[NMC Migration Notice] p013 enabled for session');
+		} else {
+			$this->session->remove('nmc_migration_notice.p013');
+			$this->session->remove('nmc_migration_notice.shown');
+		}
+
 		if (!isset($idTokenPayload->exp) || $idTokenPayload->exp < $this->timeFactory->getTime()) {
 			$this->logger->debug('Token expired');
 			$this->cleanupSessionState($sessionKeySuffix);
