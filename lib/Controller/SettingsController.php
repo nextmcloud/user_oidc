@@ -101,7 +101,7 @@ class SettingsController extends OCSController {
 	 */
 	#[PasswordConfirmationRequired]
 	#[OpenAPI(scope: OpenAPI::SCOPE_DEFAULT, tags: ['user_oidc_settings'])]
-	public function createProvider(string $identifier, string $clientId, string $clientSecret, string $discoveryEndpoint,
+	public function createProvider(string $identifier, string $clientId, string $clientSecret, string $discoveryEndpoint, string $bearerSecret,
 		array $settings = [], string $scope = 'openid email profile', ?string $endSessionEndpoint = null,
 		?string $postLogoutUri = null): DataResponse {
 		if ($this->providerService->getProviderByIdentifier($identifier) !== null) {
@@ -126,6 +126,8 @@ class SettingsController extends OCSController {
 		$provider->setEndSessionEndpoint($endSessionEndpoint ?: null);
 		$provider->setPostLogoutUri($postLogoutUri ?: null);
 		$provider->setScope($scope);
+		$encryptedBearerSecret = $this->crypto->encrypt($this->base64UrlEncode($bearerSecret));
+		$provider->setBearerSecret($encryptedBearerSecret);
 		$provider = $this->providerMapper->insert($provider);
 
 		$providerSettings = $this->providerService->setSettings($provider->getId(), $settings);
@@ -153,7 +155,7 @@ class SettingsController extends OCSController {
 	 */
 	#[PasswordConfirmationRequired]
 	#[OpenAPI(scope: OpenAPI::SCOPE_DEFAULT, tags: ['user_oidc_settings'])]
-	public function updateProvider(int $providerId, string $identifier, string $clientId, string $discoveryEndpoint, ?string $clientSecret = null,
+	public function updateProvider(int $providerId, string $identifier, string $clientId, string $discoveryEndpoint, ?string $clientSecret = null, ?string $bearerSecret = null,
 		array $settings = [], string $scope = 'openid email profile', ?string $endSessionEndpoint = null,
 		?string $postLogoutUri = null): DataResponse {
 		$provider = $this->providerMapper->getProvider($providerId);
@@ -177,6 +179,10 @@ class SettingsController extends OCSController {
 			$encryptedClientSecret = $this->crypto->encrypt($clientSecret);
 			$provider->setClientSecret($encryptedClientSecret);
 		}
+		if ($bearerSecret) {
+			$encryptedBearerSecret = $this->crypto->encrypt($this->base64UrlEncode($bearerSecret));
+			$provider->setBearerSecret($encryptedBearerSecret);
+		}
 		$provider->setDiscoveryEndpoint($discoveryEndpoint);
 		$provider->setEndSessionEndpoint($endSessionEndpoint ?: null);
 		$provider->setPostLogoutUri($postLogoutUri ?: null);
@@ -189,6 +195,10 @@ class SettingsController extends OCSController {
 		$this->providerService->setSetting($providerId, ProviderService::SETTING_JWKS_CACHE_TIMESTAMP, '');
 
 		return new DataResponse(array_merge($provider->jsonSerialize(), ['settings' => $providerSettings]));
+	}
+
+	private function base64UrlEncode(string $data): string {
+		return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
 	}
 
 	/**
